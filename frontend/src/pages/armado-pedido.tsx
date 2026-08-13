@@ -40,7 +40,7 @@ import {
   DESCUENTO_MAX,
   type Cliente,
 } from "@/lib/mock-data";
-import { cn, formatCurrency } from "@/lib/utils";
+import { cn, formatCurrency, formatFechaISO } from "@/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -599,8 +599,19 @@ export default function ArmadoPedidoPage() {
         description={
           <>
             Total <span className="tabular font-medium text-foreground">{formatCurrency(total)}</span>{" "}
-            · {totalUnidades} unidades · {lineas.length} items. Se reservará stock por 48 horas.
-            Esta acción no se puede deshacer.
+            · {totalUnidades} unidades · {lineas.length} items
+            {fechaEntrega && <> · entrega {formatFechaISO(fechaEntrega)}</>}. Se reservará stock por
+            48 horas. Esta acción no se puede deshacer.
+            {/* RF-23: si se compromete más de lo que hay, se dice acá, no en un
+                toast después de confirmar. */}
+            {haySaldo && (
+              <>
+                {" "}
+                Se factura solo lo atendible:{" "}
+                <span className="tabular text-foreground">{totalSaldoUnidades}</span> und quedan en
+                saldo por falta de stock.
+              </>
+            )}
           </>
         }
         confirmText="Confirmar"

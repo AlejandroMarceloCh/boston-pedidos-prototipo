@@ -33,8 +33,13 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePedidos } from "@/store/hooks";
 import { useStore } from "@/store/app-store";
-import type { EstadoPedido } from "./pedido-data";
-import { formatCurrency, formatFechaISO } from "@/lib/utils";
+import {
+  CAUSA_SALDO_LABEL,
+  saldoVencido,
+  type CausaSaldo,
+  type EstadoPedido,
+} from "./pedido-data";
+import { cn, formatCurrency, formatFechaISO } from "@/lib/utils";
 
 const estadoConfig: Record<
   EstadoPedido,
@@ -75,8 +80,10 @@ export function PedidoDrawer({
   const navigate = useNavigate();
   const [confirmarAnular, setConfirmarAnular] = useState(false);
   const { pedido: buscarPedido } = usePedidos();
-  const { anularPedido, facturarPedido, entregarPedido, duplicarPedido } = useStore();
+  const { anularPedido, facturarPedido, entregarPedido, duplicarPedido, setCausaSaldo } =
+    useStore();
   const pedido = buscarPedido(pedidoId) ?? null;
+  const vencido = pedido ? saldoVencido(pedido) : false;
 
   // El drawer NO se cierra tras una transición: el badge y el historial se
   // actualizan a la vista, que es la prueba de que el cambio ocurrió.
@@ -229,20 +236,41 @@ export function PedidoDrawer({
 
                 <Separator />
 
-                {/* Saldo */}
+                {/* Saldo · RF-45: se registra la causa, no solo la cantidad */}
                 {pedido.tieneSaldo && pedido.saldoUnidades && (
-                  <div className="rounded-lg border border-warning/40 bg-warning-soft/40 p-3">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-3.5 w-3.5 text-warning shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="text-[12px] font-medium">
-                          Saldo de <span className="tabular">{pedido.saldoUnidades}</span> unidades
-                        </p>
-                        <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
-                          Boston se comprometió a entregar más de lo que había en stock al confirmar.
-                          Pendiente de reposición.
-                        </p>
-                      </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2">
+                      Saldo
+                    </p>
+                    <p className="text-[12px]">
+                      <span className="tabular">{pedido.saldoUnidades}</span> und pendientes
+                      {pedido.causaSaldo && (
+                        <span className="text-muted-foreground">
+                          {" · "}
+                          {CAUSA_SALDO_LABEL[pedido.causaSaldo]}
+                        </span>
+                      )}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {vencido
+                        ? `Entrega comprometida el ${formatFechaISO(pedido.fechaEntrega!)}, vencida.`
+                        : "Se comprometió más de lo disponible al confirmar. Pendiente de reposición."}
+                    </p>
+                    <div className="mt-2 flex items-center gap-1.5">
+                      {(Object.keys(CAUSA_SALDO_LABEL) as CausaSaldo[]).map((c) => (
+                        <button
+                          key={c}
+                          onClick={() => setCausaSaldo(pedido.nro, c)}
+                          className={cn(
+                            "rounded border px-2 py-1 text-[11px] transition-colors",
+                            pedido.causaSaldo === c
+                              ? "border-border-strong text-foreground"
+                              : "border-border text-muted-foreground hover:text-foreground"
+                          )}
+                        >
+                          {CAUSA_SALDO_LABEL[c]}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 )}

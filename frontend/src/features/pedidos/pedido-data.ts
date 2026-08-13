@@ -25,6 +25,23 @@ export type EstadoPedido =
   | "entregado"
   | "anulado";
 
+/**
+ * RF-45: por qué quedó saldo. No es lo mismo no tener el insumo que haberse
+ * comprometido y no llegar: solo el segundo caso es responsabilidad de Boston,
+ * y es el que habilita RF-38 (respetar el descuento original del saldo).
+ *
+ * Al confirmar, un saldo siempre nace como `insumo`: en ese instante lo único
+ * que se sabe es que no alcanzaba el stock. Pasa a `boston` cuando vence la
+ * fecha comprometida (RF-17) sin haber entregado, o cuando alguien lo
+ * reclasifica a mano desde el detalle.
+ */
+export type CausaSaldo = "insumo" | "boston";
+
+export const CAUSA_SALDO_LABEL: Record<CausaSaldo, string> = {
+  insumo: "Falta de insumo",
+  boston: "Responsabilidad de Boston",
+};
+
 /** Estados que ocupan stock. Un borrador o un anulado no reservan nada. */
 export const ESTADOS_QUE_RESERVAN: EstadoPedido[] = [
   "confirmado",
@@ -48,6 +65,8 @@ export type PedidoDetalle = {
   total: number;
   tieneSaldo: boolean;
   saldoUnidades?: number;
+  /** RF-45: causa del saldo. Solo tiene sentido si `tieneSaldo`. */
+  causaSaldo?: CausaSaldo;
   /**
    * RF-17: fecha de entrega comprometida (ISO `YYYY-MM-DD`). Sin ella no se
    * puede saber si un saldo es responsabilidad de Boston: es la referencia
@@ -63,6 +82,19 @@ export type PedidoDetalle = {
   slot3?: number;
   factura?: string;
 };
+
+/**
+ * RF-45 + RF-17: el saldo venció si se comprometió una fecha, ya pasó, y el
+ * pedido sigue sin entregarse. Es la señal de que la causa probablemente ya no
+ * es "falta de insumo" sino incumplimiento, pero no lo reclasifica solo:
+ * quién asume la culpa es una decisión de negocio, no un cálculo.
+ */
+export function saldoVencido(p: PedidoDetalle, hoyISO?: string): boolean {
+  if (!p.tieneSaldo || !p.fechaEntrega) return false;
+  if (p.estado === "entregado" || p.estado === "anulado") return false;
+  const hoy = hoyISO ?? new Date().toISOString().slice(0, 10);
+  return p.fechaEntrega < hoy;
+}
 
 export const PEDIDOS_DETALLE: Record<string, PedidoDetalle> = {
   "2026-0811-014": {

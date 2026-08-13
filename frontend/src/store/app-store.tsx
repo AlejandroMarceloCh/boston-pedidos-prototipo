@@ -7,6 +7,8 @@
 import { createContext, useContext, useEffect, useMemo, useReducer } from "react";
 import type { ReactNode } from "react";
 import {
+  CAUSA_SALDO_LABEL,
+  type CausaSaldo,
   type PedidoDetalle,
   type PedidoEvento,
   type PedidoItem,
@@ -49,6 +51,7 @@ export type Action =
   | { type: "pedido/facturar"; nro: string; fecha: string; factura: string }
   | { type: "pedido/entregar"; nro: string; fecha: string }
   | { type: "pedido/anular"; nro: string; fecha: string; motivo?: string }
+  | { type: "pedido/causaSaldo"; nro: string; fecha: string; causa: CausaSaldo }
   | { type: "borrador/activo"; nro: string | null }
   | { type: "demo/reset"; ahora: Date };
 
@@ -79,8 +82,11 @@ export function reducer(state: AppState, action: Action): AppState {
         }
       );
       if (conSaldo) {
+        // RF-45: al confirmar, el saldo siempre nace como "falta de insumo".
+        // En este instante lo único conocido es que no alcanzaba el stock;
+        // que sea responsabilidad de Boston solo se sabe al vencer la fecha.
         actualizado = conEvento(
-          { ...actualizado, saldoUnidades: action.saldoUnidades },
+          { ...actualizado, saldoUnidades: action.saldoUnidades, causaSaldo: "insumo" },
           {
             fecha: action.fecha,
             tipo: "observacion",
@@ -143,6 +149,26 @@ export function reducer(state: AppState, action: Action): AppState {
       };
     }
 
+    case "pedido/causaSaldo": {
+      const p = state.pedidos[action.nro];
+      // Reclasificar la causa de un pedido sin saldo no significa nada.
+      if (!p || !p.tieneSaldo || p.causaSaldo === action.causa) return state;
+      return {
+        ...state,
+        pedidos: {
+          ...state.pedidos,
+          [action.nro]: conEvento(
+            { ...p, causaSaldo: action.causa },
+            {
+              fecha: action.fecha,
+              tipo: "observacion",
+              detalle: `Causa del saldo: ${CAUSA_SALDO_LABEL[action.causa]}`,
+            }
+          ),
+        },
+      };
+    }
+
     case "borrador/activo":
       return { ...state, borradorActivo: action.nro };
 
@@ -179,6 +205,8 @@ type StoreValue = {
   facturarPedido: (nro: string) => void;
   entregarPedido: (nro: string) => void;
   anularPedido: (nro: string, motivo?: string) => void;
+  /** RF-45: reclasificar de quién es la culpa del saldo. */
+  setCausaSaldo: (nro: string, causa: CausaSaldo) => void;
   duplicarPedido: (nro: string) => string;
   setBorradorActivo: (nro: string | null) => void;
   resetDemo: () => void;
@@ -280,6 +308,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         dispatch({ type: "pedido/entregar", nro, fecha: ahoraTexto() }),
       anularPedido: (nro, motivo) =>
         dispatch({ type: "pedido/anular", nro, fecha: ahoraTexto(), motivo }),
+      setCausaSaldo: (nro, causa) =>
+        dispatch({ type: "pedido/causaSaldo", nro, fecha: ahoraTexto(), causa }),
       duplicarPedido: (nro) => {
         const origen = state.pedidos[nro];
         if (!origen) return nro;
