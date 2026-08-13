@@ -120,3 +120,42 @@ describe("RF-44 · nota de crédito", () => {
     ).toBe(false);
   });
 });
+
+// ===== Precisión monetaria =====
+import { calcularTotales, centimos } from "@/lib/pedido-calc";
+
+describe("dinero exacto", () => {
+  it("un precio con más de dos decimales se normaliza antes de calcular", () => {
+    const t = calcularTotales([{ cantidad: 100, precio: 30.009 }], {
+      aplicarInicial: false,
+      slot3: 0,
+    });
+    // 30.009 se recorta a 30.01, que es lo que muestra la pantalla.
+    expect(t.subtotal).toBe(centimos(100 * 30.01));
+  });
+
+  it("subtotal − descuento + IGV es exactamente el total", () => {
+    const t = calcularTotales(
+      [
+        { cantidad: 37, precio: 18.9 },
+        { cantidad: 13, precio: 4.75 },
+        { cantidad: 7, precio: 24.95 },
+      ],
+      { aplicarInicial: true, slot3: 7 }
+    );
+    expect(centimos(t.base + t.igv)).toBe(t.total);
+    expect(centimos(t.subtotal - t.totalDescuento)).toBe(t.base);
+  });
+
+  it("los importes por línea suman el subtotal al céntimo", () => {
+    const t = calcularTotales(
+      [
+        { cantidad: 3, precio: 33.333 },
+        { cantidad: 7, precio: 1.005 },
+      ],
+      { aplicarInicial: false, slot3: 0 }
+    );
+    const suma = centimos(t.lineas.reduce((a, l) => a + l.importe, 0));
+    expect(suma).toBe(t.subtotal);
+  });
+});

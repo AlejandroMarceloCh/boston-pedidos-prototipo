@@ -31,7 +31,14 @@ export function usePedidos() {
       porCliente: (codigo: string | null) =>
         codigo
           ? Object.values(state.pedidos)
-              .filter((p) => p.clienteId === codigo && p.estado !== "anulado")
+              // Sin solicitudes: son deseo, no compra. Sumarlas inflaba el
+              // volumen del cliente.
+              .filter(
+                (p) =>
+                  p.clienteId === codigo &&
+                  p.estado !== "anulado" &&
+                  p.tipo !== "solicitud"
+              )
               .map((p) => ({
                 nro: p.nro,
                 total: p.total,

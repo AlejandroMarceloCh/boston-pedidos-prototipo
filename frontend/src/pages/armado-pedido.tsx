@@ -49,7 +49,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { calcularTotales, type LineaCalculada } from "@/lib/pedido-calc";
+import { calcularTotales, centimos, type LineaCalculada } from "@/lib/pedido-calc";
 import { useStore } from "@/store/app-store";
 import { usePedidos, useStock } from "@/store/hooks";
 import {
@@ -877,7 +877,9 @@ function PasoItems({
   // el valor controlado en toFixed(2) no se podía borrar para escribir otro:
   // cada tecla revertía el campo.
   const setPrecio = (sku: string, v: string) => {
-    const cleaned = v.replace(/[^\d.]/g, "");
+    // Máximo dos decimales: si la pantalla muestra 30.01, el sistema no puede
+    // estar calculando con 30.009.
+    const cleaned = v.replace(/[^\d.]/g, "").replace(/^(\d*\.?\d{0,2}).*$/, "$1");
     setPrecioTexto((p) => ({ ...p, [sku]: cleaned }));
 
     if (cleaned === "" || cleaned.endsWith(".")) return; // estado intermedio
@@ -899,7 +901,9 @@ function PasoItems({
       delete next[sku];
       return next;
     });
-    setLineas((prev) => prev.map((l) => (l.sku === sku ? { ...l, precio: n } : l)));
+    setLineas((prev) =>
+      prev.map((l) => (l.sku === sku ? { ...l, precio: centimos(n) } : l))
+    );
   };
 
   /** Al salir del campo se vuelve al formato de 2 decimales y se descarta lo inválido. */

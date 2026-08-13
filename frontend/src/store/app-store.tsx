@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer } from "react
 import type { ReactNode } from "react";
 import {
   CAUSA_SALDO_LABEL,
+  esSolicitud,
   puedeTransicionar,
   reservaVencida,
   type CausaSaldo,
@@ -18,7 +19,7 @@ import {
   type PedidoItem,
 } from "@/features/pedidos/pedido-data";
 import { CURRENT_USER, SKUS, type Cliente } from "@/lib/mock-data";
-import { calcularTotales, r2 } from "@/lib/pedido-calc";
+import { calcularTotales, centimos, r2 } from "@/lib/pedido-calc";
 import { semilla, type AppState } from "./semilla";
 import {
   siguienteNro,
@@ -85,7 +86,10 @@ export type Action =
       fecha: string;
       decision: "aprobada" | "rechazada";
       motivo?: string;
+      /** Al aprobar: cuándo se compromete la entrega. */
+      fechaEntrega?: string;
     }
+  | { type: "solicitud/atender"; nro: string; fecha: string; nroPedido: string }
   | { type: "pedido/facturar"; nro: string; fecha: string; facturas: string[] }
   | { type: "pedido/entregar"; nro: string; fecha: string; guias: string[] }
   | {
@@ -245,24 +249,100 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "solicitud/resolver": {
       const p = state.pedidos[action.nro];
-      if (!p) return state;
+      if (!p || !esSolicitud(p)) return state;
       const aprobada = action.decision === "aprobada";
       return {
         ...state,
         pedidos: {
           ...state.pedidos,
           [action.nro]: conEvento(
-            { ...p, estadoSolicitud: action.decision },
+            {
+              ...p,
+              estadoSolicitud: action.decision,
+              // Aprobar es un compromiso: sin fecha no se puede medir si se
+              // cumplió (RF-17). Se guarda la que dio quien aprueba.
+              fechaEntrega: aprobada ? action.fechaEntrega ?? p.fechaEntrega : p.fechaEntrega,
+            },
             {
               fecha: action.fecha,
               tipo: aprobada ? "confirmado" : "anulado",
               detalle: aprobada
-                ? `Solicitud aprobada${action.motivo ? ` · ${action.motivo}` : ""}`
+                ? `Solicitud aprobada${action.fechaEntrega ? ` · entrega comprometida ${action.fechaEntrega}` : ""}${action.motivo ? ` · ${action.motivo}` : ""}`
                 : `Solicitud rechazada${action.motivo ? ` · ${action.motivo}` : ""}`,
             }
           ),
         },
       };
+    }
+
+    case "solicitud/atender": {
+      const p = state.pedidos[action.nro];
+      if (!p || !esSolicitud(p) || p.estadoSolicitud !== "aprobada") return state;
+
+      // RF-21: una solicitud aprobada se atiende cuando llega la reposición.
+      // Convertirla es crear el PEDIDO que la cumple: hasta acá era una
+      // promesa sin mecanismo de cumplimiento.
+      const reservas = reservasPorSku(state);
+      const itemsAtendibles: PedidoItem[] = [];
+      const itemsPendientes: PedidoItem[] = [];
+      for (const item of p.items) {
+        const disponible = disponibleDe(item.sku, reservas);
+        const atendible = Math.max(0, Math.min(item.cantidad, disponible));
+        if (atendible > 0) itemsAtendibles.push({ ...item, cantidad: atendible, atendible });
+        if (item.cantidad - atendible > 0)
+          itemsPendientes.push({ ...item, cantidad: item.cantidad - atendible, atendible: 0 });
+      }
+      if (itemsAtendibles.length === 0) return state;
+
+      const t = calcularTotales(
+        itemsAtendibles.map((i) => ({ cantidad: i.cantidad, precio: i.precio })),
+        {
+          aplicarInicial: p.aplicarInicial ?? true,
+          slot3: p.slot3 ?? 0,
+          condicion: p.condicion,
+        }
+      );
+
+      const pedidos = { ...state.pedidos };
+      // El pedido nuevo nace ya confirmado: la reposición llegó y se separa.
+      pedidos[action.nroPedido] = {
+        ...p,
+        nro: action.nroPedido,
+        tipo: "pedido",
+        estadoSolicitud: undefined,
+        documentoHermano: p.nro,
+        estado: "confirmado",
+        items: itemsAtendibles,
+        fecha: action.fecha,
+        subtotal: centimos(t.subtotal),
+        descuentoTotal: centimos(t.totalDescuento),
+        igv: centimos(t.igv),
+        total: centimos(t.total),
+        eventos: [
+          {
+            fecha: action.fecha,
+            tipo: "confirmado",
+            detalle: `Atiende la solicitud ${p.nro} · stock reservado`,
+          },
+        ],
+      };
+      // La solicitud queda atendida, con lo que aún no se pudo cubrir.
+      pedidos[p.nro] = conEvento(
+        {
+          ...p,
+          estadoSolicitud: itemsPendientes.length ? "aprobada" : "atendida",
+          items: itemsPendientes.length ? itemsPendientes : p.items,
+          documentoHermano: action.nroPedido,
+        },
+        {
+          fecha: action.fecha,
+          tipo: "observacion",
+          detalle: itemsPendientes.length
+            ? `Atendida en parte con el pedido ${action.nroPedido}`
+            : `Atendida por completo con el pedido ${action.nroPedido}`,
+        }
+      );
+      return { ...state, pedidos };
     }
 
     case "pedido/facturar": {
@@ -437,8 +517,11 @@ type StoreValue = {
   resolverSolicitud: (
     nro: string,
     decision: "aprobada" | "rechazada",
-    motivo?: string
+    motivo?: string,
+    fechaEntrega?: string
   ) => void;
+  /** Convierte una solicitud aprobada en un pedido confirmado. Devuelve su nro. */
+  atenderSolicitud: (nro: string) => string;
   facturarPedido: (nro: string) => void;
   entregarPedido: (nro: string) => void;
   anularPedido: (nro: string, motivo?: string) => void;
@@ -552,8 +635,20 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           valor,
           detalle,
         }),
-      resolverSolicitud: (nro, decision, motivo) =>
-        dispatch({ type: "solicitud/resolver", nro, fecha: ahoraTexto(), decision, motivo }),
+      resolverSolicitud: (nro, decision, motivo, fechaEntrega) =>
+        dispatch({
+          type: "solicitud/resolver",
+          nro,
+          fecha: ahoraTexto(),
+          decision,
+          motivo,
+          fechaEntrega,
+        }),
+      atenderSolicitud: (nro) => {
+        const nroPedido = siguienteNro(state, new Date());
+        dispatch({ type: "solicitud/atender", nro, fecha: ahoraTexto(), nroPedido });
+        return nroPedido;
+      },
       facturarPedido: (nro) => {
         // Un correlativo por partida, consecutivos entre sí.
         const p = state.pedidos[nro];

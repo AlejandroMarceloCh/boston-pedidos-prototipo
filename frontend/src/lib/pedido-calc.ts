@@ -15,6 +15,21 @@ import {
 
 export const IGV = 0.18;
 
+/**
+ * Céntimos exactos.
+ *
+ * El dinero se redondea en un solo lugar y siempre igual. Antes cada campo se
+ * redondeaba por su cuenta al persistir, así que `subtotal − descuento + IGV`
+ * podía no dar el total guardado: diferencias de un céntimo que en un documento
+ * tributario no se pueden explicar.
+ *
+ * Un precio con más de dos decimales se recorta al entrar: si la pantalla
+ * muestra 30.01 el sistema no puede estar calculando con 30.009.
+ */
+export function centimos(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export type LineaCalculable = {
   cantidad: number;
   precio: number;
@@ -91,6 +106,8 @@ export function calcularTotales(
     const cap = l.stockDisponible ?? Number.POSITIVE_INFINITY;
     return {
       ...l,
+      // El precio se normaliza a céntimos acá, una sola vez.
+      precio: centimos(l.precio),
       atendible: Math.max(0, Math.min(l.cantidad, cap)),
       saldo: Math.max(0, l.cantidad - cap),
     };
@@ -100,32 +117,39 @@ export function calcularTotales(
   const totalSolicitadoUnidades = lineasNorm.reduce((a, l) => a + l.cantidad, 0);
   const totalSaldoUnidades = lineasNorm.reduce((a, l) => a + l.saldo, 0);
   const totalDocenas = Math.floor(totalUnidades / 12);
-  const subtotal = lineasNorm.reduce((a, l) => a + l.atendible * l.precio, 0);
-  const totalSaldoMonto = lineasNorm.reduce((a, l) => a + l.saldo * l.precio, 0);
+  // Se redondea el importe de CADA línea, y el subtotal es la suma de esos
+  // importes ya redondeados: así los renglones visibles suman el total exacto.
+  const importes = lineasNorm.map((l) => centimos(l.atendible * l.precio));
+  const subtotal = centimos(importes.reduce((a, i) => a + i, 0));
+  const totalSaldoMonto = centimos(
+    lineasNorm.reduce((a, l) => a + centimos(l.saldo * l.precio), 0)
+  );
 
   const nivel = calcularNivelDescuento(totalDocenas);
-  const dInicial = aplicarInicial ? subtotal * (DESCUENTO_INICIAL / 100) : 0;
-  const dVolumen = nivel ? (subtotal - dInicial) * (nivel.porcentaje / 100) : 0;
+  const dInicial = centimos(aplicarInicial ? subtotal * (DESCUENTO_INICIAL / 100) : 0);
+  const dVolumen = centimos(nivel ? (subtotal - dInicial) * (nivel.porcentaje / 100) : 0);
   // TODO (definir con Comercial): el slot manual se aplica sobre el subtotal BRUTO,
   // mientras que inicial y volumen van en cascada. Si la regla real es cascada,
   // cambiar a: (subtotal - dInicial - dVolumen) * (slot3 / 100).
-  const dSlot3 = slot3 > 0 ? subtotal * (slot3 / 100) : 0;
+  const dSlot3 = centimos(slot3 > 0 ? subtotal * (slot3 / 100) : 0);
 
-  const descuentoBruto = dInicial + dVolumen + dSlot3;
-  const totalDescuento = Math.min(descuentoBruto, subtotal * (DESCUENTO_MAX / 100));
+  const descuentoBruto = centimos(dInicial + dVolumen + dSlot3);
+  const totalDescuento = centimos(
+    Math.min(descuentoBruto, subtotal * (DESCUENTO_MAX / 100))
+  );
   const descuentoTopeado = descuentoBruto > totalDescuento + 0.005;
 
   // Un obsequio o una donación se entregan: mueven stock y se valorizan, pero
   // no se cobran. La base imponible y el IGV son cero.
-  const base = cobra ? subtotal - totalDescuento : 0;
-  const igv = base * IGV;
+  const base = centimos(cobra ? subtotal - totalDescuento : 0);
+  const igv = centimos(base * IGV);
 
   return {
-    lineas: lineasNorm.map((l) => ({
+    lineas: lineasNorm.map((l, i) => ({
       atendible: l.atendible,
       saldo: l.saldo,
-      importe: l.atendible * l.precio,
-      importeSaldo: l.saldo * l.precio,
+      importe: importes[i],
+      importeSaldo: centimos(l.saldo * l.precio),
     })),
     totalUnidades,
     totalSolicitadoUnidades,
@@ -141,9 +165,9 @@ export function calcularTotales(
     descuentoTopeado,
     base,
     igv,
-    total: base + igv,
+    total: centimos(base + igv),
   };
 }
 
-/** Redondeo a céntimos, para lo que se persiste. */
-export const r2 = (n: number) => Math.round(n * 100) / 100;
+/** @deprecated Usar `centimos`, que es la única política de redondeo. */
+export const r2 = centimos;

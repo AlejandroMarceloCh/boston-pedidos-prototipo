@@ -312,7 +312,9 @@ export default function MisPedidosPage() {
       <div className="grid sm:grid-cols-5 gap-2">
         {(Object.keys(estadoConfig) as Estado[]).map((e) => {
           const activo = estadoFiltro === e;
-          const cuantos = PEDIDOS.filter((p) => p.estado === e).length;
+          // Solo pedidos: una solicitud nace con estado "borrador" y hacía
+          // que la tarjeta de Borradores contara documentos que no lo son.
+          const cuantos = soloPedidos.filter((p) => p.estado === e).length;
           return (
             <button
               key={e}

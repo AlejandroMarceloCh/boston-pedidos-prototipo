@@ -182,6 +182,8 @@ export function saldoAlConfirmar(
 // ===== RF-24 · Demanda no atendida =====
 
 export type DemandaSku = {
+  /** Documentos distintos en los que aparece, para no contar por ítem. */
+  documentos: string[];
   sku: string;
   descripcion: string;
   articulo: string;
@@ -223,11 +225,16 @@ export function demandaNoAtendida(state: AppState): DemandaSku[] {
       const previo = porSku.get(item.sku);
       if (previo) {
         previo.unidades += item.cantidad;
-        previo.solicitudes += 1;
+        // Documentos, no ítems: una solicitud con 5 SKUs contaba 5 veces.
+        if (!previo.documentos.includes(p.nro)) {
+          previo.documentos.push(p.nro);
+          previo.solicitudes += 1;
+        }
         previo.monto += item.cantidad * item.precio;
         if (!previo.clientes.includes(p.cliente)) previo.clientes.push(p.cliente);
       } else {
         porSku.set(item.sku, {
+          documentos: [p.nro],
           sku: item.sku,
           descripcion: item.descripcion,
           articulo: item.articulo ?? sku?.articulo ?? "",

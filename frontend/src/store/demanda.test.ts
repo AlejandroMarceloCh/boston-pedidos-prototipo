@@ -86,3 +86,24 @@ describe("RF-24 · demanda no atendida", () => {
     }
   });
 });
+
+describe("contadores no mezclan solicitudes con pedidos", () => {
+  it("una solicitud con varios SKUs cuenta como UN documento", () => {
+    let s = semilla(AHORA);
+    const b = Object.values(s.pedidos).find((p) => p.items.length >= 2)!;
+    // Se fuerza una solicitud con dos líneas.
+    s = reducer(s, {
+      type: "pedido/upsert",
+      pedido: {
+        ...b,
+        nro: `${b.nro}-S`,
+        tipo: "solicitud",
+        estadoSolicitud: "pendiente",
+      },
+    });
+    const d = demandaNoAtendida(s);
+    expect(d.length).toBeGreaterThanOrEqual(2);
+    // Cada SKU aparece en un solo documento, no cuenta por ítem.
+    d.forEach((x) => expect(x.solicitudes).toBe(1));
+  });
+});

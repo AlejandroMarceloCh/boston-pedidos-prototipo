@@ -48,7 +48,7 @@ import {
   type CausaSaldo,
   type EstadoPedido,
 } from "./pedido-data";
-import { CLIENTES } from "@/lib/mock-data";
+import { CLIENTES, COLORS, SKUS } from "@/lib/mock-data";
 import { cn, formatCurrency, formatFechaISO } from "@/lib/utils";
 
 const estadoConfig: Record<
@@ -97,6 +97,7 @@ export function PedidoDrawer({
     duplicarPedido,
     setCausaSaldo,
     resolverSolicitud,
+    atenderSolicitud,
     marcarConfirmacionCliente,
   } = useStore();
   const pedido = buscarPedido(pedidoId) ?? null;
@@ -141,13 +142,38 @@ export function PedidoDrawer({
   const reenviar = () => {
     if (!pedido) return;
     const destino = CLIENTES.find((c) => c.codigo === pedido.clienteId)?.telefono;
+    // El mensaje tiene que dejar verificar cantidad, TALLA y COLOR: los tres
+    // errores que originaron el proyecto son "pedí 18 y no 7", "pedí L y no
+    // XS" y "quería negro, no marrón". Un SKU crudo no los resuelve.
+    const cli = CLIENTES.find((c) => c.codigo === pedido.clienteId);
+    const dir = cli?.direccionesEntrega.find((d) => d.id === pedido.direccionId);
     const texto = [
-      `Pedido ${pedido.nro} · ${pedido.cliente}`,
-      ...pedido.items.map(
-        (i) => `• ${i.descripcion} (${i.sku}) x${i.cantidad} und`
-      ),
-      `Total: ${formatCurrency(pedido.total)}`,
-    ].join("\n");
+      `*Pedido ${pedido.nro}* · Boston`,
+      pedido.cliente,
+      "",
+      ...pedido.items.map((i) => {
+        const sku = SKUS.find((x) => x.codigo === i.sku);
+        const color = COLORS[i.color ?? sku?.color ?? ""]?.name ?? i.color ?? "";
+        const talla = i.talla ?? sku?.talla ?? "";
+        const und = i.atendible ?? i.cantidad;
+        const doc = Math.floor(und / 12);
+        const sueltas = und % 12;
+        const cant = [doc > 0 && `${doc} doc`, sueltas > 0 && `${sueltas} und`]
+          .filter(Boolean)
+          .join(" + ");
+        return `• ${i.descripcion}\n   Color ${color} · Talla ${talla}\n   ${cant} (${und} und) · ${formatCurrency(i.precio)} c/u`;
+      }),
+      "",
+      `Condición: ${condicionLabel(pedido.condicion)}`,
+      pedido.fechaEntrega ? `Entrega: ${formatFechaISO(pedido.fechaEntrega)}` : "",
+      dir ? `Destino: ${dir.nombre} — ${dir.direccion}` : "",
+      "",
+      `*Total: ${formatCurrency(pedido.total)}*`,
+      "",
+      "Por favor confirma que está correcto.",
+    ]
+      .filter((l) => l !== "")
+      .join("\n");
     const numero = destino?.replace(/[^\d]/g, "") ?? "";
     window.open(
       `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`,
@@ -548,6 +574,39 @@ export function PedidoDrawer({
                       Aprobar
                     </Button>
                   </>
+                )}
+
+                {/* Una solicitud aprobada se atiende cuando llega reposición:
+                    ahí nace el pedido que la cumple. */}
+                {esSolicitud(pedido) && pedido.estadoSolicitud === "aprobada" && (
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const nuevo = atenderSolicitud(pedido.nro);
+                      toast.success(`Pedido ${nuevo} creado desde la solicitud`, {
+                        description: "Stock reservado para lo que ya se puede atender.",
+                      });
+                    }}
+                    className="gap-1.5"
+                  >
+                    <Check className="h-3.5 w-3.5" />
+                    Atender con stock actual
+                  </Button>
+                )}
+
+                {/* Anular un facturado emite nota de crédito: la acción tiene
+                    que estar donde el pedido ya está facturado, no solo en
+                    confirmado. */}
+                {!esSolicitud(pedido) && pedido.estado === "facturado" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setConfirmarAnular(true)}
+                    className="text-destructive hover:text-destructive hover:bg-destructive/5 gap-1.5"
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    Anular y emitir N/C
+                  </Button>
                 )}
 
                 {/* Entregado y anulado no tienen transición posible: la única
