@@ -1,8 +1,11 @@
 // Verificación del núcleo del store: numeración, stock derivado y totales.
+
 import { describe, it, expect } from "vitest";
 import { semilla } from "@/store/semilla";
 import { siguienteNro, reservasPorSku, disponibleDe, resumenes, kpis } from "@/store/selectors";
 import { calcularTotales } from "@/lib/pedido-calc";
+import { reducer } from "@/store/app-store";
+import { ESTADOS_QUE_RESERVAN } from "@/features/pedidos/pedido-data";
 import { SKUS } from "@/lib/mock-data";
 
 describe("semilla", () => {
@@ -114,8 +117,6 @@ describe("resumenes y kpis", () => {
 });
 
 // ===== Ciclo de vida del pedido =====
-import { reducer } from "@/store/app-store";
-import { ESTADOS_QUE_RESERVAN } from "@/features/pedidos/pedido-data";
 
 describe("ciclo de vida del pedido", () => {
   const base = () => semilla(new Date(2027, 2, 15, 12, 0));
@@ -193,7 +194,6 @@ describe("ciclo de vida del pedido", () => {
 });
 
 // ===== RNF-05 · un único cálculo =====
-import { calcularTotales } from "@/lib/pedido-calc";
 
 describe("RNF-05 · los importes por línea suman el subtotal", () => {
   const lineas = [
