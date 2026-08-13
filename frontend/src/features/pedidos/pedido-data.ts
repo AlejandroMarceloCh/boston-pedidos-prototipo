@@ -4,8 +4,16 @@
 export type PedidoItem = {
   sku: string;
   descripcion: string;
+  /** Unidades solicitadas por el cliente. */
   cantidad: number;
   precio: number;
+  /**
+   * RNF-05: unidades que se pudieron atender con el stock del momento. El
+   * importe de la línea sale de acá, no de `cantidad`; si no, los renglones
+   * del detalle no suman el subtotal guardado, que es de lo atendible (RF-32).
+   * Ausente en los pedidos semilla: se asume que todo se atendió.
+   */
+  atendible?: number;
   // Se completan al hidratar desde SKUS cuando el ítem semilla no los trae.
   articulo?: string;
   talla?: string;

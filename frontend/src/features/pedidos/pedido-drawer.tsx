@@ -188,12 +188,18 @@ export function PedidoDrawer({
                             <td className="px-3 py-2.5">
                               <p className="leading-snug">{it.descripcion}</p>
                               <p className="tabular text-[10px] text-muted-foreground mt-0.5">
-                                {it.sku} · {it.cantidad} und · S/{" "}
+                                {it.sku} · {it.atendible ?? it.cantidad} und · S/{" "}
                                 {it.precio.toFixed(2)} c/u
+                                {(it.cantidad - (it.atendible ?? it.cantidad)) > 0 && (
+                                  <span className="text-warning">
+                                    {" "}
+                                    · {it.cantidad - (it.atendible ?? it.cantidad)} sin stock
+                                  </span>
+                                )}
                               </p>
                             </td>
                             <td className="px-3 py-2.5 text-right tabular font-medium align-top">
-                              {formatCurrency(it.cantidad * it.precio)}
+                              {formatCurrency((it.atendible ?? it.cantidad) * it.precio)}
                             </td>
                           </tr>
                         ))}

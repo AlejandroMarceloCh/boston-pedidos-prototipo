@@ -8,6 +8,7 @@ import { Keyboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { COLORS, type Articulo, type Sku } from "@/lib/mock-data";
 import { useStock } from "@/store/hooks";
+import { calcularTotales } from "@/lib/pedido-calc";
 
 /** Debajo de esta cantidad de unidades el stock se marca como escaso. */
 const UMBRAL_ESCASO = 48;
@@ -233,10 +234,16 @@ export function ResumenSeleccion({
   const variantes = entradas.length;
   const docenas = entradas.reduce((a, [, d]) => a + d, 0);
   const unidades = docenas * 12;
-  const subtotal = entradas.reduce((a, [codigo, d]) => {
-    const sku = skus.find((s) => s.codigo === codigo);
-    return a + (sku ? d * 12 * sku.precio : 0);
-  }, 0);
+  // RNF-05: el importe sale del cálculo central, igual que en el resto del
+  // sistema. Acá las celdas ya están topeadas al stock, así que no hay saldo,
+  // pero la fórmula debe ser una sola de todos modos.
+  const subtotal = calcularTotales(
+    entradas.map(([codigo, d]) => ({
+      cantidad: d * 12,
+      precio: skus.find((s) => s.codigo === codigo)?.precio ?? 0,
+    })),
+    { aplicarInicial: false, slot3: 0 }
+  ).subtotal;
 
   return (
     <aside className="flex flex-col gap-5 p-6 bg-background border-t md:border-t-0 md:border-l border-border">

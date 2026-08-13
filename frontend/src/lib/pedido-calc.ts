@@ -28,7 +28,25 @@ export type OpcionesDescuento = {
   slot3: number;
 };
 
+/**
+ * Desglose de una línea. RNF-05: las pantallas deben pintar ESTOS importes y no
+ * calcular los suyos, o los renglones dejan de sumar el subtotal que muestran
+ * al lado — que es justo lo que pasaba cuando cada vista hacía su propia suma.
+ */
+export type LineaCalculada = {
+  /** Unidades que se pueden entregar hoy. */
+  atendible: number;
+  /** Unidades solicitadas que no alcanza a cubrir el stock. */
+  saldo: number;
+  /** Importe de lo atendible: es lo que se factura. */
+  importe: number;
+  /** Importe del saldo, a precio de lista. */
+  importeSaldo: number;
+};
+
 export type TotalesPedido = {
+  /** Desglose por línea, en el mismo orden en que se pasaron. */
+  lineas: LineaCalculada[];
   /** Unidades que efectivamente se pueden entregar (min entre pedido y stock). */
   totalUnidades: number;
   /** Unidades solicitadas en total (para info, no se descuenta). */
@@ -90,6 +108,12 @@ export function calcularTotales(
   const igv = base * IGV;
 
   return {
+    lineas: lineasNorm.map((l) => ({
+      atendible: l.atendible,
+      saldo: l.saldo,
+      importe: l.atendible * l.precio,
+      importeSaldo: l.saldo * l.precio,
+    })),
     totalUnidades,
     totalSolicitadoUnidades,
     totalSaldoUnidades,

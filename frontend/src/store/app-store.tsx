@@ -264,7 +264,12 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         clienteId: input.cliente?.codigo ?? null,
         fecha: previo?.fecha ?? fecha,
         estado: previo?.estado ?? "borrador",
-        items: input.lineas.map(itemDesdeLinea),
+        // Cada ítem guarda lo solicitado y lo atendible: el detalle necesita
+        // ambos para que los importes cuadren con el subtotal (RNF-05).
+        items: input.lineas.map((l, i) => ({
+          ...itemDesdeLinea(l),
+          atendible: t.lineas[i]?.atendible ?? l.cantidad,
+        })),
         condicion: previo?.condicion ?? "Letras a 30 días",
         moneda: "PEN",
         descuentoTotal: r2(t.totalDescuento),

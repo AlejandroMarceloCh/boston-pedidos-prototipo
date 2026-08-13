@@ -191,3 +191,49 @@ describe("ciclo de vida del pedido", () => {
     expect(Object.keys(s.pedidos)).toHaveLength(7);
   });
 });
+
+// ===== RNF-05 · un único cálculo =====
+import { calcularTotales } from "@/lib/pedido-calc";
+
+describe("RNF-05 · los importes por línea suman el subtotal", () => {
+  const lineas = [
+    { cantidad: 48, precio: 30, stockDisponible: 43 },  // 5 und sin stock
+    { cantidad: 60, precio: 24.95, stockDisponible: 500 },
+    { cantidad: 24, precio: 4.75, stockDisponible: 0 },  // todo saldo
+  ];
+
+  it("la suma de los importes es exactamente el subtotal", () => {
+    const t = calcularTotales(lineas, { aplicarInicial: true, slot3: 0 });
+    const suma = t.lineas.reduce((a, l) => a + l.importe, 0);
+    expect(suma).toBeCloseTo(t.subtotal, 6);
+  });
+
+  it("cada línea reparte lo solicitado entre atendible y saldo, sin perder unidades", () => {
+    const t = calcularTotales(lineas, { aplicarInicial: true, slot3: 0 });
+    t.lineas.forEach((l, i) => {
+      expect(l.atendible + l.saldo).toBe(lineas[i].cantidad);
+    });
+    expect(t.totalUnidades + t.totalSaldoUnidades).toBe(t.totalSolicitadoUnidades);
+  });
+
+  it("el saldo no entra en el subtotal ni infla el descuento (RF-32)", () => {
+    const t = calcularTotales(lineas, { aplicarInicial: true, slot3: 0 });
+    // Atendible: 43×30 + 60×24.95 + 0 = 1290 + 1497 = 2787
+    expect(t.subtotal).toBeCloseTo(2787, 2);
+    // 103 unidades atendibles = 8 docenas → nivel 2 (12%), no el nivel que
+    // daría contar las 132 solicitadas (11 docenas, también nivel 2 acá, pero
+    // el subtotal sí cambia).
+    expect(t.totalUnidades).toBe(103);
+    expect(t.totalSaldoUnidades).toBe(29);
+    expect(t.totalSaldoMonto).toBeCloseTo(5 * 30 + 24 * 4.75, 2);
+  });
+
+  it("sin stockDisponible todo es atendible (compatibilidad)", () => {
+    const t = calcularTotales([{ cantidad: 12, precio: 10 }], {
+      aplicarInicial: false,
+      slot3: 0,
+    });
+    expect(t.totalSaldoUnidades).toBe(0);
+    expect(t.subtotal).toBe(120);
+  });
+});

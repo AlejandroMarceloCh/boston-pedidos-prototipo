@@ -48,7 +48,7 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { calcularTotales } from "@/lib/pedido-calc";
+import { calcularTotales, type LineaCalculada } from "@/lib/pedido-calc";
 import { useStore } from "@/store/app-store";
 import { usePedidos, useStock } from "@/store/hooks";
 import type { PedidoItem } from "@/features/pedidos/pedido-data";
@@ -158,6 +158,7 @@ export default function ArmadoPedidoPage() {
     [lineas, disponible]
   );
   const {
+    lineas: detalleLineas,
     totalUnidades,
     totalSaldoUnidades,
     totalDocenas,
@@ -517,6 +518,7 @@ export default function ArmadoPedidoPage() {
                 cliente={cliente}
                 direccionId={direccionId}
                 lineas={lineas}
+                detalleLineas={detalleLineas}
                 subtotal={subtotal}
                 totalDescuento={totalDescuento}
                 base={base}
@@ -919,7 +921,15 @@ function PasoItems({
     lineas: lineasFiltradas.filter((l) => l.articulo === a.codigo),
   }));
 
-  const subtotal = lineas.reduce((a, l) => a + l.cantidad * l.precio, 0);
+  // RNF-05: el subtotal y los importes por línea salen del mismo cálculo que usa
+  // el resto del sistema. Si cada pantalla suma por su cuenta, los renglones
+  // dejan de cuadrar con el total que se muestra al lado.
+  const calc = calcularTotales(
+    lineas.map((l) => ({ ...l, stockDisponible: disponibleSku(l.sku) })),
+    { aplicarInicial: false, slot3: 0 }
+  );
+  const subtotal = calc.subtotal;
+  const porLinea = new Map(lineas.map((l, i) => [l.sku, calc.lineas[i]]));
 
   return (
     <div className="grid lg:grid-cols-[1fr_320px] lg:h-full">
@@ -1209,11 +1219,17 @@ function PasoItems({
                               )}
                             </td>
 
-                            {/* Subtotal */}
+                            {/* Subtotal de la línea: lo atendible, que es lo que
+                                se va a facturar. El saldo se anuncia aparte. */}
                             <td className="py-3.5 text-right">
                               <span className="tabular text-[14px] font-semibold">
-                                {formatCurrency(l.cantidad * l.precio)}
+                                {formatCurrency(porLinea.get(l.sku)?.importe ?? 0)}
                               </span>
+                              {(porLinea.get(l.sku)?.saldo ?? 0) > 0 && (
+                                <p className="text-[10.5px] text-warning tabular mt-0.5">
+                                  {porLinea.get(l.sku)?.saldo} und sin stock
+                                </p>
+                              )}
                             </td>
 
                             <td className="py-3.5 pr-4 text-right">
@@ -1889,6 +1905,7 @@ function PasoConfirmar({
   cliente,
   direccionId,
   lineas,
+  detalleLineas,
   subtotal,
   totalDescuento,
   base,
@@ -1902,6 +1919,8 @@ function PasoConfirmar({
   cliente: Cliente;
   direccionId: string;
   lineas: Linea[];
+  /** RNF-05: importes por línea del cálculo central, para que sumen el subtotal. */
+  detalleLineas: LineaCalculada[];
   subtotal: number;
   totalDescuento: number;
   base: number;
@@ -1986,11 +2005,17 @@ function PasoConfirmar({
               <div className="min-w-0">
                 <p className="text-[12px] truncate">{l.descripcion}</p>
                 <p className="text-[10px] text-muted-foreground tabular">
-                  {l.sku} · {l.cantidad} und
+                  {l.sku} · {detalleLineas[i]?.atendible ?? l.cantidad} und
+                  {(detalleLineas[i]?.saldo ?? 0) > 0 && (
+                    <span className="text-warning">
+                      {" "}
+                      · {detalleLineas[i].saldo} sin stock
+                    </span>
+                  )}
                 </p>
               </div>
               <p className="tabular text-[12px] font-medium">
-                {formatCurrency(l.cantidad * l.precio)}
+                {formatCurrency(detalleLineas[i]?.importe ?? 0)}
               </p>
             </li>
           ))}
