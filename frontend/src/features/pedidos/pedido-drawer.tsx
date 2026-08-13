@@ -37,7 +37,10 @@ import { useStore } from "@/store/app-store";
 import {
   CAUSA_SALDO_LABEL,
   CONFIRMACION_LABEL,
+  condicionLabel,
   ESTADO_SOLICITUD_LABEL,
+  HORAS_RESERVA,
+  reservaVencida,
   esSolicitud,
   importeDePartida,
   saldoVencido,
@@ -189,7 +192,7 @@ export function PedidoDrawer({
                   </div>
                   <DrawerTitle className="truncate">{pedido.cliente}</DrawerTitle>
                   <DrawerDescription>
-                    {pedido.fecha} · {pedido.condicion} ·{" "}
+                    {pedido.fecha} · {condicionLabel(pedido.condicion)} ·{" "}
                     <span className="tabular">{pedido.moneda}</span>
                     {pedido.fechaEntrega && (
                       <>
@@ -205,6 +208,16 @@ export function PedidoDrawer({
               </DrawerHeader>
 
               <DrawerBody className="space-y-5">
+                {/* RF-02: la reserva caducó y el stock volvió a estar libre. */}
+                {reservaVencida(pedido) && (
+                  <div className="rounded-lg border border-warning/40 bg-warning-soft/40 p-3 flex items-start gap-2">
+                    <AlertTriangle className="h-4 w-4 text-warning shrink-0 mt-0.5" aria-hidden="true" />
+                    <p className="text-[12px] leading-relaxed">
+                      La reserva de stock venció ({HORAS_RESERVA} h desde la confirmación).
+                      Las unidades volvieron a quedar disponibles para otros pedidos.
+                    </p>
+                  </div>
+                )}
                 {/* Items */}
                 <div>
                   <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2">
@@ -277,8 +290,18 @@ export function PedidoDrawer({
                               )}
                               <p className="text-[11px] text-muted-foreground tabular mt-1">
                                 {par.skus.length} items
-                                {par.factura && ` · ${par.factura}`}
                               </p>
+                              {(par.factura || par.guia || par.notaCredito) && (
+                                <p className="text-[11px] tabular mt-1 flex flex-wrap gap-x-2">
+                                  {par.factura && <span>Factura {par.factura}</span>}
+                                  {par.guia && <span>Guía {par.guia}</span>}
+                                  {par.notaCredito && (
+                                    <span className="text-destructive">
+                                      N/C {par.notaCredito}
+                                    </span>
+                                  )}
+                                </p>
+                              )}
                             </div>
                           );
                         })}

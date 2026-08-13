@@ -3,6 +3,7 @@
 import {
   ESTADOS_QUE_RESERVAN,
   esSolicitud,
+  reservaVencida,
   type PedidoDetalle,
   type PedidoResumen,
   type TipoDocumento,
@@ -45,6 +46,36 @@ export const SUFIJO_SOLICITUD = "-S";
 /** Número de la solicitud hermana de un pedido: "2026-0813-001" → "…-001-S". */
 export function nroSolicitudDe(nroPedido: string): string {
   return `${nroPedido}${SUFIJO_SOLICITUD}`;
+}
+
+/** Correlativo genérico de documentos con formato "SSSS-NNNNN". */
+function siguienteCorrelativo(
+  state: AppState,
+  serie: string,
+  campo: "factura" | "guia" | "notaCredito",
+  desde: number
+): string {
+  const maximo = Object.values(state.pedidos).reduce((max, p) => {
+    const docs = [
+      p[campo === "factura" ? "factura" : "factura"],
+      ...(p.partidas ?? []).map((par) => par[campo]),
+    ];
+    return docs.reduce((m, d) => {
+      const n = parseInt(String(d ?? "").split("-")[1] ?? "0", 10);
+      return Number.isNaN(n) ? m : Math.max(m, n);
+    }, max);
+  }, desde);
+  return `${serie}-${maximo + 1}`;
+}
+
+/** RF-43 · Siguiente guía de remisión: T001-00841 */
+export function siguienteGuia(state: AppState): string {
+  return siguienteCorrelativo(state, "T001", "guia", 840);
+}
+
+/** RF-44 · Siguiente nota de crédito: FC01-00120 */
+export function siguienteNotaCredito(state: AppState): string {
+  return siguienteCorrelativo(state, "FC01", "notaCredito", 119);
 }
 
 /** Siguiente correlativo de factura: F001-12391 */
@@ -94,9 +125,15 @@ export function resumenesSolicitudes(state: AppState): PedidoResumen[] {
  * Unidades comprometidas por pedidos vivos, por SKU. Un borrador no reserva
  * nada; un pedido anulado deja de reservar por el solo hecho de estar anulado.
  */
-export function reservasPorSku(state: AppState): Map<string, number> {
+export function reservasPorSku(
+  state: AppState,
+  ahora: Date = new Date()
+): Map<string, number> {
   const mapa = new Map<string, number>();
   for (const p of Object.values(state.pedidos)) {
+    // RF-02: una reserva vencida deja de retener stock. Se libera sola: no hay
+    // un proceso que la caduque, se deduce de la fecha de confirmación.
+    if (reservaVencida(p, ahora)) continue;
     // Una solicitud es demanda registrada, no compromiso: no toca el stock.
     // Si contara, el excedente se descontaría dos veces (RF-20).
     if (esSolicitud(p)) continue;

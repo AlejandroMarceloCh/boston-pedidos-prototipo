@@ -48,6 +48,33 @@ export const ESTADO_SOLICITUD_LABEL: Record<EstadoSolicitud, string> = {
   atendida: "Atendida",
 };
 
+/**
+ * RF-35 · Condiciones de venta reales del ERP: E/C/L/O/D.
+ * Fuente: auditoría del ERP citada en el guion P7.
+ *
+ * Obsequio y donación no generan cobro; hay que confirmar con Finanzas cómo se
+ * documentan (pregunta abierta), pero al menos ya se pueden registrar.
+ */
+export type CondicionVenta = "E" | "C" | "L" | "O" | "D";
+
+export const CONDICIONES_VENTA: {
+  id: CondicionVenta;
+  label: string;
+  detalle: string;
+  /** Si no cobra, el pedido no genera importe a facturar. */
+  cobra: boolean;
+}[] = [
+  { id: "C", label: "Contado", detalle: "Paga al recibir la factura", cobra: true },
+  { id: "L", label: "Letras a 30 días", detalle: "Crédito documentado", cobra: true },
+  { id: "E", label: "Contra entrega", detalle: "Paga al recibir la mercadería", cobra: true },
+  { id: "O", label: "Obsequio", detalle: "Sin cobro · muestra comercial", cobra: false },
+  { id: "D", label: "Donación", detalle: "Sin cobro · donación", cobra: false },
+];
+
+export function condicionLabel(id?: string): string {
+  return CONDICIONES_VENTA.find((c) => c.id === id)?.label ?? id ?? "—";
+}
+
 export type EstadoPedido =
   | "borrador"
   | "confirmado"
@@ -115,6 +142,14 @@ export type Partida = {
   skus: string[];
   /** Factura emitida para esta partida, si ya se facturó. */
   factura?: string;
+  /**
+   * RF-43 · Guía de remisión. Es un documento distinto de la factura y es el
+   * que mueve la mercadería: *"no es con la guía, es con la carga del almacén.
+   * Guía, factura, guía, factura."*
+   */
+  guia?: string;
+  /** RF-44 · Nota de crédito, si la partida se anuló ya facturada. */
+  notaCredito?: string;
 };
 
 /**
@@ -146,6 +181,32 @@ export function importeDePartida(p: PedidoDetalle, partida: Partida): number {
 /** Un documento es solicitud solo si lo dice; todo lo anterior era pedido. */
 export function esSolicitud(p: PedidoDetalle): boolean {
   return p.tipo === "solicitud";
+}
+
+/**
+ * RF-02 · Cuánto dura la reserva de stock de un pedido confirmado.
+ *
+ * La interfaz prometía "48 horas" en tres pantallas sin ninguna lógica detrás.
+ * Se implementa con ese número porque es el que ya se venía comunicando, pero
+ * **nadie lo confirmó**: es la pregunta 10 de REQUISITOS.md. Cambiar esta
+ * constante es todo lo que hace falta si el número real es otro.
+ */
+export const HORAS_RESERVA = 48;
+
+/**
+ * Una reserva vence si el pedido sigue confirmado —sin facturar— pasadas las
+ * horas de reserva. Facturado o entregado ya consumió el stock de verdad, así
+ * que no vence.
+ */
+export function reservaVencida(p: PedidoDetalle, ahora: Date = new Date()): boolean {
+  if (esSolicitud(p) || p.estado !== "confirmado") return false;
+  const confirmado = [...p.eventos].reverse().find((e) => e.tipo === "confirmado");
+  if (!confirmado) return false;
+  const [dia, hora = "00:00"] = confirmado.fecha.split(" ");
+  const [y, m, d] = dia.split("-").map(Number);
+  const [hh, mm] = hora.split(":").map(Number);
+  const desde = new Date(y, m - 1, d, hh, mm);
+  return ahora.getTime() - desde.getTime() > HORAS_RESERVA * 3600_000;
 }
 
 /** Estados que ocupan stock. Un borrador o un anulado no reservan nada. */

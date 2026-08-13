@@ -52,7 +52,11 @@ import {
 import { calcularTotales, type LineaCalculada } from "@/lib/pedido-calc";
 import { useStore } from "@/store/app-store";
 import { usePedidos, useStock } from "@/store/hooks";
-import type { PedidoItem, Partida } from "@/features/pedidos/pedido-data";
+import {
+  CONDICIONES_VENTA,
+  type PedidoItem,
+  type Partida,
+} from "@/features/pedidos/pedido-data";
 import { MatrizCarga, ResumenSeleccion } from "@/features/pedidos/matriz-carga";
 
 type Linea = {
@@ -100,6 +104,7 @@ export default function ArmadoPedidoPage() {
   const [nota, setNota] = useState(enEdicion?.nota ?? "");
   // RF-41/42: por defecto una sola partida implícita; el paso 4 permite partir.
   const [partidas, setPartidas] = useState<Partida[]>(enEdicion?.partidas ?? []);
+  const [condicion, setCondicion] = useState(enEdicion?.condicion ?? "L");
   // RF-17: fecha de entrega comprometida. Vacía en un borrador; obligatoria para confirmar.
   const [fechaEntrega, setFechaEntrega] = useState(enEdicion?.fechaEntrega ?? "");
   const [confirmarOpen, setConfirmarOpen] = useState(false);
@@ -541,6 +546,8 @@ export default function ArmadoPedidoPage() {
                 setFechaEntrega={setFechaEntrega}
                 partidas={partidas}
                 setPartidas={setPartidas}
+                condicion={condicion}
+                setCondicion={setCondicion}
               />
             )}
           </motion.div>
@@ -1928,6 +1935,8 @@ function PasoConfirmar({
   setFechaEntrega,
   partidas,
   setPartidas,
+  condicion,
+  setCondicion,
 }: {
   cliente: Cliente;
   direccionId: string;
@@ -1945,6 +1954,8 @@ function PasoConfirmar({
   setFechaEntrega: (v: string) => void;
   partidas: Partida[];
   setPartidas: (p: Partida[]) => void;
+  condicion: string;
+  setCondicion: (v: string) => void;
 }) {
   const direccion = cliente.direccionesEntrega.find((d) => d.id === direccionId);
   const [partirOpen, setPartirOpen] = useState((partidas?.length ?? 0) > 1);
@@ -2054,6 +2065,33 @@ function PasoConfirmar({
         <p className="mt-1 text-[10px] text-muted-foreground">
           Referencia para medir el saldo. Requerida para confirmar.
         </p>
+
+        {/* RF-35 · Condición de venta */}
+        <div className="mt-4">
+          <Label
+            htmlFor="condicion-venta"
+            className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium"
+          >
+            Condición de venta
+          </Label>
+          <select
+            id="condicion-venta"
+            value={condicion}
+            onChange={(e) => setCondicion(e.target.value)}
+            className="mt-2 w-full sm:w-64 h-9 rounded-md border border-border bg-surface px-2.5 text-[13px] shadow-sunken focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {CONDICIONES_VENTA.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[10px] text-muted-foreground">
+            {CONDICIONES_VENTA.find((c) => c.id === condicion)?.detalle}
+            {!CONDICIONES_VENTA.find((c) => c.id === condicion)?.cobra &&
+              " · no genera cobro"}
+          </p>
+        </div>
       </div>
 
 

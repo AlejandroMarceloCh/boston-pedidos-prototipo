@@ -94,7 +94,12 @@ describe("partidas", () => {
       fecha: "2027-03-16 09:00",
       facturas: ["F001-12391", "F001-12392"],
     });
-    s = reducer(s, { type: "pedido/entregar", nro, fecha: "2027-03-17 10:00" });
+    s = reducer(s, {
+      type: "pedido/entregar",
+      nro,
+      fecha: "2027-03-17 10:00",
+      guias: ["T001-00841", "T001-00842"],
+    });
     expect(s.pedidos[nro].estado).toBe("entregado");
 
     // Y anular sigue liberando: las partidas no alteran el ciclo de vida.

@@ -25,6 +25,8 @@ import {
   reservasPorSku,
   disponibleDe,
   nroSolicitudDe,
+  siguienteGuia,
+  siguienteNotaCredito,
 } from "./selectors";
 
 const STORAGE_KEY = "boston.pedidos.v1";
@@ -50,6 +52,8 @@ export type BorradorInput = {
   aplicarInicial: boolean;
   slot3: number;
   nota: string;
+  /** RF-35: código de condición de venta (E/C/L/O/D). */
+  condicion?: string;
   /** RF-41/42. Vacío = una sola partida implícita. */
   partidas?: Partida[];
   /** RF-17: fecha de entrega comprometida (ISO `YYYY-MM-DD`). "" si aún no se fijó. */
@@ -88,8 +92,15 @@ export type Action =
       motivo?: string;
     }
   | { type: "pedido/facturar"; nro: string; fecha: string; facturas: string[] }
-  | { type: "pedido/entregar"; nro: string; fecha: string }
-  | { type: "pedido/anular"; nro: string; fecha: string; motivo?: string }
+  | { type: "pedido/entregar"; nro: string; fecha: string; guias: string[] }
+  | {
+      type: "pedido/anular";
+      nro: string;
+      fecha: string;
+      motivo?: string;
+      /** RF-44: solo si estaba facturado. Una por partida facturada. */
+      notasCredito?: string[];
+    }
   | { type: "pedido/causaSaldo"; nro: string; fecha: string; causa: CausaSaldo }
   | { type: "borrador/activo"; nro: string | null }
   | { type: "sesion/entrar"; usuario: string }
@@ -263,38 +274,64 @@ export function reducer(state: AppState, action: Action): AppState {
     case "pedido/entregar": {
       const p = state.pedidos[action.nro];
       if (!p) return state;
-      return {
-        ...state,
-        pedidos: {
-          ...state.pedidos,
-          [action.nro]: conEvento(
-            { ...p, estado: "entregado" },
-            { fecha: action.fecha, tipo: "entregado", detalle: "Recibido por el cliente" }
-          ),
-        },
+
+      // RF-43: la guía de remisión acompaña la mercadería, una por destino.
+      const partidasConGuia = (p.partidas ?? []).map((par, i) => ({
+        ...par,
+        guia: par.guia ?? action.guias[i],
+      }));
+
+      let actualizado: PedidoDetalle = {
+        ...p,
+        estado: "entregado",
+        partidas: partidasConGuia.length ? partidasConGuia : undefined,
       };
+      action.guias.forEach((guia, i) => {
+        const par = partidasConGuia[i];
+        actualizado = conEvento(actualizado, {
+          fecha: action.fecha,
+          tipo: "entregado",
+          detalle: par
+            ? `Guía ${guia} · entregado en destino ${i + 1}`
+            : `Guía ${guia} · recibido por el cliente`,
+        });
+      });
+      return { ...state, pedidos: { ...state.pedidos, [action.nro]: actualizado } };
     }
 
     case "pedido/anular": {
       const p = state.pedidos[action.nro];
       if (!p) return state;
       const liberadas = p.items.reduce((a, i) => a + i.cantidad, 0);
-      return {
-        ...state,
-        pedidos: {
-          ...state.pedidos,
-          [action.nro]: conEvento(
-            { ...p, estado: "anulado" },
-            {
-              fecha: action.fecha,
-              tipo: "anulado",
-              detalle: action.motivo
-                ? `${action.motivo} · ${liberadas} und liberadas`
-                : `Anulado · ${liberadas} und liberadas`,
-            }
-          ),
-        },
+      const notas = action.notasCredito ?? [];
+
+      // RF-44: si ya se había facturado, anular no alcanza — hay que emitir
+      // nota de crédito por cada factura emitida.
+      const partidasConNota = (p.partidas ?? []).map((par, i) => ({
+        ...par,
+        notaCredito: par.factura ? par.notaCredito ?? notas[i] : par.notaCredito,
+      }));
+
+      let actualizado: PedidoDetalle = {
+        ...p,
+        estado: "anulado",
+        partidas: partidasConNota.length ? partidasConNota : undefined,
       };
+      actualizado = conEvento(actualizado, {
+        fecha: action.fecha,
+        tipo: "anulado",
+        detalle: action.motivo
+          ? `${action.motivo} · ${liberadas} und liberadas`
+          : `Anulado · ${liberadas} und liberadas`,
+      });
+      notas.forEach((nc) => {
+        actualizado = conEvento(actualizado, {
+          fecha: action.fecha,
+          tipo: "observacion",
+          detalle: `Nota de crédito ${nc} emitida`,
+        });
+      });
+      return { ...state, pedidos: { ...state.pedidos, [action.nro]: actualizado } };
     }
 
     case "pedido/causaSaldo": {
@@ -438,7 +475,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           ...itemDesdeLinea(l),
           atendible: t.lineas[i]?.atendible ?? l.cantidad,
         })),
-        condicion: previo?.condicion ?? "Letras a 30 días",
+        condicion: input.condicion ?? previo?.condicion ?? "L",
         moneda: "PEN",
         descuentoTotal: r2(t.totalDescuento),
         subtotal: r2(t.subtotal),
@@ -541,10 +578,34 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         );
         dispatch({ type: "pedido/facturar", nro, fecha: ahoraTexto(), facturas });
       },
-      entregarPedido: (nro) =>
-        dispatch({ type: "pedido/entregar", nro, fecha: ahoraTexto() }),
-      anularPedido: (nro, motivo) =>
-        dispatch({ type: "pedido/anular", nro, fecha: ahoraTexto(), motivo }),
+      entregarPedido: (nro) => {
+        const p = state.pedidos[nro];
+        const cuantas = Math.max(1, p?.partidas?.length ?? 1);
+        const base = parseInt(siguienteGuia(state).split("-")[1], 10);
+        const guias = Array.from(
+          { length: cuantas },
+          (_, i) => `T001-${String(base + i).padStart(5, "0")}`
+        );
+        dispatch({ type: "pedido/entregar", nro, fecha: ahoraTexto(), guias });
+      },
+      anularPedido: (nro, motivo) => {
+        const p = state.pedidos[nro];
+        // Solo se emiten notas de crédito si había facturas que revertir.
+        const facturadas = (p?.partidas ?? []).filter((par) => par.factura).length;
+        const cantidad = p?.estado === "facturado" ? Math.max(1, facturadas) : 0;
+        const base = parseInt(siguienteNotaCredito(state).split("-")[1], 10);
+        const notasCredito = Array.from(
+          { length: cantidad },
+          (_, i) => `FC01-${String(base + i).padStart(5, "0")}`
+        );
+        dispatch({
+          type: "pedido/anular",
+          nro,
+          fecha: ahoraTexto(),
+          motivo,
+          notasCredito,
+        });
+      },
       setCausaSaldo: (nro, causa) =>
         dispatch({ type: "pedido/causaSaldo", nro, fecha: ahoraTexto(), causa }),
       duplicarPedido: (nro) => {

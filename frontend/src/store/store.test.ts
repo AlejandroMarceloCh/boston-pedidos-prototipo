@@ -171,7 +171,7 @@ describe("ciclo de vida del pedido", () => {
     expect(s.pedidos[borrador.nro].estado).toBe("facturado");
     expect(s.pedidos[borrador.nro].factura).toBe("F001-12391");
 
-    s = reducer(s, { type: "pedido/entregar", nro: borrador.nro, fecha: "2027-03-15 16:00" });
+    s = reducer(s, { type: "pedido/entregar", nro: borrador.nro, fecha: "2027-03-15 16:00", guias: ["T001-00841"] });
     expect(s.pedidos[borrador.nro].estado).toBe("entregado");
 
     // Cada transición dejó su rastro: el historial no puede mentir.
