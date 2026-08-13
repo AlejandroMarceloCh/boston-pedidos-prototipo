@@ -130,6 +130,19 @@ export const CAUSA_SALDO_LABEL: Record<CausaSaldo, string> = {
  * facturación y su dirección de entrega. Un pedido normal tiene una sola
  * partida, así que el flujo habitual no cambia.
  */
+/**
+ * Cuánto de cada SKU va en una partida. El caso del audio es literal:
+ *   *"de esas 100,000, 45,000 me las facturas a mí. De estas 25,000 me las
+ *   facturas a ella"* — el mismo artículo repartido entre dos RUC.
+ *
+ * Una lista de SKU completos no alcanzaba: obligaba a mandar todo un SKU a una
+ * sola partida.
+ */
+export type PartidaItem = {
+  sku: string;
+  cantidad: number;
+};
+
 export type Partida = {
   id: string;
   /** RUC al que se factura. Por defecto, el del cliente del pedido. */
@@ -138,8 +151,8 @@ export type Partida = {
   razonSocial: string;
   /** Dirección de entrega, de las que tiene cargadas el cliente. */
   direccionId: string;
-  /** SKU de las líneas del pedido que van en esta partida. */
-  skus: string[];
+  /** Cantidades de esta partida, por SKU. */
+  items: PartidaItem[];
   /** Factura emitida para esta partida, si ya se facturó. */
   factura?: string;
   /**
@@ -165,17 +178,42 @@ export function partidasDe(p: PedidoDetalle, rucCliente = ""): Partida[] {
       ruc: rucCliente,
       razonSocial: p.cliente,
       direccionId: p.direccionId ?? "1",
-      skus: p.items.map((i) => i.sku),
+      items: p.items.map((i) => ({
+        sku: i.sku,
+        cantidad: i.atendible ?? i.cantidad,
+      })),
       factura: p.factura,
     },
   ];
 }
 
-/** Importe de una partida: la suma de lo atendible de sus líneas. */
+/** Importe de una partida, al precio de cada línea del pedido. */
 export function importeDePartida(p: PedidoDetalle, partida: Partida): number {
-  return p.items
-    .filter((i) => partida.skus.includes(i.sku))
-    .reduce((a, i) => a + (i.atendible ?? i.cantidad) * i.precio, 0);
+  return partida.items.reduce((a, pi) => {
+    const linea = p.items.find((i) => i.sku === pi.sku);
+    return a + pi.cantidad * (linea?.precio ?? 0);
+  }, 0);
+}
+
+/** Unidades de una partida. */
+export function unidadesDePartida(partida: Partida): number {
+  return partida.items.reduce((a, i) => a + i.cantidad, 0);
+}
+
+/**
+ * Las partidas cuadran si reparten exactamente lo atendible de cada línea: ni
+ * de más (se facturaría lo que no hay) ni de menos (quedaría mercadería fuera
+ * de toda factura).
+ */
+export function partidasCuadran(p: PedidoDetalle): boolean {
+  if (!p.partidas?.length) return true;
+  return p.items.every((linea) => {
+    const asignado = p.partidas!.reduce(
+      (a, par) => a + (par.items.find((i) => i.sku === linea.sku)?.cantidad ?? 0),
+      0
+    );
+    return asignado === (linea.atendible ?? linea.cantidad);
+  });
 }
 
 /** Un documento es solicitud solo si lo dice; todo lo anterior era pedido. */
@@ -207,6 +245,24 @@ export function reservaVencida(p: PedidoDetalle, ahora: Date = new Date()): bool
   const [hh, mm] = hora.split(":").map(Number);
   const desde = new Date(y, m - 1, d, hh, mm);
   return ahora.getTime() - desde.getTime() > HORAS_RESERVA * 3600_000;
+}
+
+/**
+ * Transiciones permitidas. El reducer no validaba el estado de origen, así que
+ * se podía facturar un borrador, entregar algo sin facturar o reconfirmar un
+ * pedido ya confirmado —que además mandaba a solicitud lo que ese mismo pedido
+ * tenía reservado—. Cada acción declara desde dónde puede ejecutarse.
+ */
+export const TRANSICIONES: Record<EstadoPedido, EstadoPedido[]> = {
+  borrador: ["confirmado", "anulado"],
+  confirmado: ["facturado", "anulado"],
+  facturado: ["entregado", "anulado"],
+  entregado: [],
+  anulado: [],
+};
+
+export function puedeTransicionar(desde: EstadoPedido, hacia: EstadoPedido): boolean {
+  return TRANSICIONES[desde].includes(hacia);
 }
 
 /** Estados que ocupan stock. Un borrador o un anulado no reservan nada. */

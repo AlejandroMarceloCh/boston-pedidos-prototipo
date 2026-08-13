@@ -43,6 +43,7 @@ import {
   reservaVencida,
   esSolicitud,
   importeDePartida,
+  unidadesDePartida,
   saldoVencido,
   type CausaSaldo,
   type EstadoPedido,
@@ -290,7 +291,7 @@ export function PedidoDrawer({
                                 </p>
                               )}
                               <p className="text-[11px] text-muted-foreground tabular mt-1">
-                                {par.skus.length} items
+                                {unidadesDePartida(par)} und · {par.items.length} items
                               </p>
                               {(par.factura || par.guia || par.notaCredito) && (
                                 <p className="text-[11px] tabular mt-1 flex flex-wrap gap-x-2">

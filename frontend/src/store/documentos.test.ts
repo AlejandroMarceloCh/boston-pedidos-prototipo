@@ -60,8 +60,8 @@ describe("RF-43 · guía de remisión", () => {
         ...p,
         estado: "facturado",
         partidas: [
-          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", skus: [p.items[0].sku], factura: "F001-1" },
-          { id: "2", ruc: "2", razonSocial: "B", direccionId: "2", skus: p.items.slice(1).map((i) => i.sku), factura: "F001-2" },
+          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", items: [{ sku: p.items[0].sku, cantidad: p.items[0].cantidad }], factura: "F001-1" },
+          { id: "2", ruc: "2", razonSocial: "B", direccionId: "2", items: p.items.slice(1).map((i) => ({ sku: i.sku, cantidad: i.cantidad })), factura: "F001-2" },
         ],
       },
     });
@@ -88,7 +88,7 @@ describe("RF-44 · nota de crédito", () => {
         ...p,
         estado: "facturado",
         partidas: [
-          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", skus: p.items.map((i) => i.sku), factura: "F001-1" },
+          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", items: p.items.map((i) => ({ sku: i.sku, cantidad: i.cantidad })), factura: "F001-1" },
         ],
       },
     });

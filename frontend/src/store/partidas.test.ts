@@ -5,7 +5,9 @@ import { describe, it, expect } from "vitest";
 import { semilla } from "@/store/semilla";
 import { reducer } from "@/store/app-store";
 import {
+  partidasCuadran,
   partidasDe,
+  unidadesDePartida,
   importeDePartida,
   type Partida,
   type PedidoDetalle,
@@ -23,14 +25,14 @@ function pedidoPartido(): { estado: ReturnType<typeof base>; nro: string; p: Ped
       ruc: "20512345671",
       razonSocial: "Distribuidora Andina del Sur SAC",
       direccionId: "1",
-      skus: original.items.slice(0, 2).map((i) => i.sku),
+      items: original.items.slice(0, 2).map((i) => ({ sku: i.sku, cantidad: i.atendible ?? i.cantidad })),
     },
     {
       id: "2",
       ruc: "20587654321",
       razonSocial: "Confecciones Textiles Perú EIRL",
       direccionId: "2",
-      skus: original.items.slice(2).map((i) => i.sku),
+      items: original.items.slice(2).map((i) => ({ sku: i.sku, cantidad: i.atendible ?? i.cantidad })),
     },
   ];
   const p = { ...original, estado: "confirmado" as const, partidas };
@@ -44,7 +46,7 @@ describe("partidas", () => {
     const p = Object.values(s.pedidos)[0];
     const partidas = partidasDe(p, "20512345671");
     expect(partidas).toHaveLength(1);
-    expect(partidas[0].skus).toEqual(p.items.map((i) => i.sku));
+    expect(partidas[0].items.map((i) => i.sku)).toEqual(p.items.map((i) => i.sku));
   });
 
   it("la suma de las partidas es exactamente el total de las líneas", () => {
@@ -59,9 +61,8 @@ describe("partidas", () => {
 
   it("ninguna línea queda fuera ni se repite entre partidas", () => {
     const { p } = pedidoPartido();
-    const asignados = p.partidas!.flatMap((par) => par.skus);
-    expect(asignados).toHaveLength(p.items.length);
-    expect(new Set(asignados).size).toBe(p.items.length);
+    // Cada línea repartida exactamente: ni de más ni de menos.
+    expect(partidasCuadran(p)).toBe(true);
   });
 
   it("facturar emite una factura por partida, con su RUC en el historial", () => {
@@ -101,11 +102,12 @@ describe("partidas", () => {
       guias: ["T001-00841", "T001-00842"],
     });
     expect(s.pedidos[nro].estado).toBe("entregado");
-
-    // Y anular sigue liberando: las partidas no alteran el ciclo de vida.
-    s = reducer(s, { type: "pedido/anular", nro, fecha: "2027-03-17 11:00" });
-    expect(s.pedidos[nro].estado).toBe("anulado");
     expect(s.pedidos[nro].partidas).toHaveLength(2);
+
+    // Un entregado ya no se anula: la mercadería está con el cliente. Para
+    // revertir hay que emitir nota de crédito sobre el facturado.
+    s = reducer(s, { type: "pedido/anular", nro, fecha: "2027-03-17 11:00" });
+    expect(s.pedidos[nro].estado).toBe("entregado");
   });
 
   it("un pedido de una sola partida factura igual que antes", () => {
@@ -173,5 +175,66 @@ describe("confirmación del cliente", () => {
       valor: "aceptado",
     });
     expect(s.pedidos[p.nro].estado).toBe("confirmado");
+  });
+});
+
+describe("RF-41 · el caso literal del audio", () => {
+  // "de esas 100,000, 45,000 me las facturas a mí. De estas 25,000 me las
+  // facturas a ella." — el MISMO artículo repartido entre dos RUC.
+  it("reparte cantidades de un mismo SKU entre dos partidas", () => {
+    let s = base();
+    const p0 = Object.values(s.pedidos)[0];
+    const sku = p0.items[0].sku;
+
+    const p: PedidoDetalle = {
+      ...p0,
+      estado: "confirmado",
+      items: [{ ...p0.items[0], cantidad: 70000, atendible: 70000, precio: 10 }],
+      partidas: [
+        {
+          id: "1",
+          ruc: "20512345671",
+          razonSocial: "Yo",
+          direccionId: "1",
+          items: [{ sku, cantidad: 45000 }],
+        },
+        {
+          id: "2",
+          ruc: "20587654321",
+          razonSocial: "Ella",
+          direccionId: "2",
+          items: [{ sku, cantidad: 25000 }],
+        },
+      ],
+    };
+    s = reducer(s, { type: "pedido/upsert", pedido: p });
+
+    // El reparto cuadra exactamente con la línea del pedido.
+    expect(partidasCuadran(p)).toBe(true);
+    expect(unidadesDePartida(p.partidas![0])).toBe(45000);
+    expect(unidadesDePartida(p.partidas![1])).toBe(25000);
+    // Y cada una se valoriza a su cantidad, no al SKU completo.
+    expect(importeDePartida(p, p.partidas![0])).toBe(450000);
+    expect(importeDePartida(p, p.partidas![1])).toBe(250000);
+  });
+
+  it("detecta un reparto incompleto", () => {
+    const s = base();
+    const p0 = Object.values(s.pedidos)[0];
+    const p: PedidoDetalle = {
+      ...p0,
+      items: [{ ...p0.items[0], cantidad: 100, atendible: 100 }],
+      partidas: [
+        {
+          id: "1",
+          ruc: "1",
+          razonSocial: "A",
+          direccionId: "1",
+          items: [{ sku: p0.items[0].sku, cantidad: 60 }],
+        },
+      ],
+    };
+    // Faltan 40: no se puede facturar así.
+    expect(partidasCuadran(p)).toBe(false);
   });
 });

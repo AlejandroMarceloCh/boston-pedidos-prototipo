@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer } from "react
 import type { ReactNode } from "react";
 import {
   CAUSA_SALDO_LABEL,
+  puedeTransicionar,
   reservaVencida,
   type CausaSaldo,
   type ConfirmacionCliente,
@@ -117,7 +118,10 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "pedido/confirmar": {
       const p = state.pedidos[action.nro];
-      if (!p) return state;
+      // Solo desde borrador: reconfirmar un pedido ya confirmado lo haría
+      // competir contra su propia reserva y mandaría a solicitud lo que ya
+      // tenía separado.
+      if (!p || !puedeTransicionar(p.estado, "confirmado")) return state;
 
       // RF-20: la confirmación parte el requerimiento en dos documentos. El
       // PEDIDO se queda con lo atendible y lo reserva; el excedente —lo que el
@@ -263,7 +267,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "pedido/facturar": {
       const p = state.pedidos[action.nro];
-      if (!p) return state;
+      if (!p || !puedeTransicionar(p.estado, "facturado")) return state;
 
       // RF-02: si la reserva venció, el stock volvió a estar disponible y pudo
       // haberse vendido a otro. Facturar sin revalidar sería comprometer
@@ -303,7 +307,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "pedido/entregar": {
       const p = state.pedidos[action.nro];
-      if (!p) return state;
+      if (!p || !puedeTransicionar(p.estado, "entregado")) return state;
 
       // RF-43: la guía de remisión acompaña la mercadería, una por destino.
       const partidasConGuia = (p.partidas ?? []).map((par, i) => ({
@@ -331,7 +335,7 @@ export function reducer(state: AppState, action: Action): AppState {
 
     case "pedido/anular": {
       const p = state.pedidos[action.nro];
-      if (!p) return state;
+      if (!p || !puedeTransicionar(p.estado, "anulado")) return state;
       const liberadas = p.items.reduce((a, i) => a + i.cantidad, 0);
       const notas = action.notasCredito ?? [];
 

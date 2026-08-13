@@ -130,7 +130,7 @@ describe("P0 · confirmar un pedido nuevo", () => {
           ruc: "20512345671",
           razonSocial: "X",
           direccionId: "2",
-          skus: [skuConStock(inicial)],
+          items: [{ sku: skuConStock(inicial), cantidad: 12 }],
         },
       ],
       eventos: [],
@@ -163,7 +163,7 @@ describe("correlativos tributarios", () => {
         ...p,
         factura: "F001-12500",
         partidas: [
-          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", skus: [], guia: "T001-00900" },
+          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", items: [], guia: "T001-00900" },
         ],
       },
     });
@@ -182,8 +182,8 @@ describe("correlativos tributarios", () => {
         ...p,
         factura: "F001-12391",
         partidas: [
-          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", skus: [], factura: "F001-12391" },
-          { id: "2", ruc: "2", razonSocial: "B", direccionId: "2", skus: [], factura: "F001-12392" },
+          { id: "1", ruc: "1", razonSocial: "A", direccionId: "1", items: [], factura: "F001-12391" },
+          { id: "2", ruc: "2", razonSocial: "B", direccionId: "2", items: [], factura: "F001-12392" },
         ],
       },
     });
@@ -242,5 +242,52 @@ describe("RF-02 · una reserva vencida no se puede facturar", () => {
     });
     // Sigue confirmado: hay que reconfirmar contra el stock actual.
     expect(despues.pedidos[conf.nro].estado).toBe("confirmado");
+  });
+});
+
+describe("máquina de estados", () => {
+  const nroDe = (s: ReturnType<typeof semilla>, estado: string) =>
+    Object.values(s.pedidos).find((p) => p.estado === estado)!.nro;
+
+  it("no se puede facturar un borrador", () => {
+    const s = semilla(AHORA);
+    const nro = nroDe(s, "borrador");
+    const d = reducer(s, {
+      type: "pedido/facturar",
+      nro,
+      fecha: "2027-03-16 09:00",
+      facturas: ["F001-12391"],
+    });
+    expect(d.pedidos[nro].estado).toBe("borrador");
+  });
+
+  it("no se puede entregar algo que no se facturó", () => {
+    const s = semilla(AHORA);
+    const nro = nroDe(s, "confirmado");
+    const d = reducer(s, {
+      type: "pedido/entregar",
+      nro,
+      fecha: "2027-03-16 09:00",
+      guias: ["T001-00841"],
+    });
+    expect(d.pedidos[nro].estado).toBe("confirmado");
+  });
+
+  it("reconfirmar no destruye el pedido", () => {
+    const s = semilla(AHORA);
+    const nro = nroDe(s, "confirmado");
+    const antes = s.pedidos[nro].items.map((i) => i.cantidad);
+    const d = reducer(s, { type: "pedido/confirmar", nro, fecha: "2027-03-16 09:00" });
+    // Antes, reconfirmar competía contra su propia reserva y mandaba todo a
+    // solicitud dejando el pedido vacío.
+    expect(d.pedidos[nro].items.map((i) => i.cantidad)).toEqual(antes);
+    expect(d.pedidos[`${nro}-S`]).toBeUndefined();
+  });
+
+  it("un pedido anulado no revive", () => {
+    const s = semilla(AHORA);
+    const nro = nroDe(s, "anulado");
+    const d = reducer(s, { type: "pedido/confirmar", nro, fecha: "2027-03-16 09:00" });
+    expect(d.pedidos[nro].estado).toBe("anulado");
   });
 });

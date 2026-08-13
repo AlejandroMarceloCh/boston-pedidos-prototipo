@@ -160,11 +160,15 @@ export default function ArmadoPedidoPage() {
   // RF-41: si el pedido se parte, cada línea tiene que estar en exactamente una
   // partida. Facturar de más o dejar items fuera de toda factura no es un
   // detalle cosmético.
-  const skusAsignados = partidas.flatMap((p) => p.skus);
   const partidasValidas =
-    partidas.length <= 1 ||
-    (skusAsignados.length === lineas.length &&
-      new Set(skusAsignados).size === lineas.length);
+    partidas.length === 0 ||
+    lineas.every((l) => {
+      const asignado = partidas.reduce(
+        (a, p) => a + (p.items.find((i) => i.sku === l.sku)?.cantidad ?? 0),
+        0
+      );
+      return asignado === l.cantidad;
+    });
   const puedeConfirmar =
     !!cliente && lineas.length > 0 && fechaEntrega !== "" && partidasValidas;
 
@@ -623,7 +627,7 @@ export default function ArmadoPedidoPage() {
                 puedeConfirmar
                   ? undefined
                   : !partidasValidas
-                    ? "Hay items sin asignar o repetidos entre las partidas."
+                    ? "Quedan unidades sin asignar a ninguna partida."
                     : "Falta la fecha de entrega comprometida."
               }
               aria-label="Confirmar pedido, abrir diálogo de doble confirmación"
@@ -1970,57 +1974,82 @@ function PasoConfirmar({
 
   const agregarPartida = () => {
     const id = String((partidas.at(-1)?.id ? Number(partidas.at(-1)!.id) : partidas.length) + 1);
+    // La primera partida se queda con todo; las siguientes nacen vacías y se
+    // les va pasando cantidad.
+    const base =
+      partidas.length === 0
+        ? [
+            {
+              id: "1",
+              ruc: cliente.ruc,
+              razonSocial: cliente.razonSocial,
+              direccionId,
+              items: lineas.map((l) => ({ sku: l.sku, cantidad: l.cantidad })),
+            },
+          ]
+        : partidas;
     setPartidas([
-      ...partidas,
+      ...base,
       {
         id,
         ruc: cliente.ruc,
         razonSocial: cliente.razonSocial,
         direccionId: cliente.direccionesEntrega[0]?.id ?? "1",
-        skus: [],
+        items: [],
       },
     ]);
   };
 
   const quitarPartida = (id: string) => {
     const resto = partidas.filter((p) => p.id !== id);
-    const huerfanos = partidas.find((p) => p.id === id)?.skus ?? [];
-    // Los items de la partida que se va vuelven a la primera, para que no
+    const huerfanos = partidas.find((p) => p.id === id)?.items ?? [];
+    // Las cantidades de la partida que se va vuelven a la primera, para que no
     // queden fuera de toda factura.
     if (resto[0]) {
-      resto[0] = {
-        ...resto[0],
-        skus: [...new Set([...resto[0].skus, ...huerfanos])],
-      };
+      const items = [...resto[0].items];
+      for (const h of huerfanos) {
+        const i = items.findIndex((x) => x.sku === h.sku);
+        if (i >= 0) items[i] = { ...items[i], cantidad: items[i].cantidad + h.cantidad };
+        else items.push({ ...h });
+      }
+      resto[0] = { ...resto[0], items };
     }
-    setPartidas(resto);
+    setPartidas(resto.length === 1 ? [] : resto);
   };
 
   const editarPartida = (id: string, cambios: Partial<Partida>) =>
     setPartidas(partidas.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
 
-  /** Un SKU pertenece a una sola partida: asignarlo lo quita de las demás. */
-  const alternarSku = (id: string, sku: string) =>
+  /** Fija cuánto de un SKU va en una partida, sin exceder lo del pedido. */
+  const setCantidadPartida = (id: string, sku: string, cantidad: number) => {
+    const enPedido = lineas.find((l) => l.sku === sku)?.cantidad ?? 0;
+    const enOtras = partidas
+      .filter((p) => p.id !== id)
+      .reduce((a, p) => a + (p.items.find((i) => i.sku === sku)?.cantidad ?? 0), 0);
+    const tope = Math.max(0, enPedido - enOtras);
+    const valor = Math.max(0, Math.min(cantidad, tope));
     setPartidas(
       partidas.map((p) => {
-        if (p.id === id) {
-          return {
-            ...p,
-            skus: p.skus.includes(sku)
-              ? p.skus.filter((s) => s !== sku)
-              : [...p.skus, sku],
-          };
-        }
-        return { ...p, skus: p.skus.filter((s) => s !== sku) };
+        if (p.id !== id) return p;
+        const items = p.items.filter((i) => i.sku !== sku);
+        return valor > 0 ? { ...p, items: [...items, { sku, cantidad: valor }] } : { ...p, items };
       })
     );
+  };
 
-  // Invariante: cada línea del pedido está en exactamente una partida.
-  const asignados = partidas.flatMap((p) => p.skus);
-  const partidasCuadran =
-    partidas.length <= 1 ||
-    (asignados.length === lineas.length &&
-      new Set(asignados).size === lineas.length);
+  /** Cuánto de ese SKU quedó sin asignar a ninguna partida. */
+  const sinAsignar = (sku: string) => {
+    const enPedido = lineas.find((l) => l.sku === sku)?.cantidad ?? 0;
+    const asignado = partidas.reduce(
+      (a, p) => a + (p.items.find((i) => i.sku === sku)?.cantidad ?? 0),
+      0
+    );
+    return enPedido - asignado;
+  };
+
+  // Invariante: las partidas reparten exactamente lo del pedido.
+  const partidasCuadranOk =
+    partidas.length === 0 || lineas.every((l) => sinAsignar(l.sku) === 0);
   // No se puede comprometer una entrega para ayer.
   const hoyISO = new Date().toISOString().slice(0, 10);
 
@@ -2139,9 +2168,10 @@ function PasoConfirmar({
             </p>
 
             {partidas.map((par, i) => {
-              const importe = lineas
-                .filter((l) => par.skus.includes(l.sku))
-                .reduce((a, l) => a + l.cantidad * l.precio, 0);
+              const importe = par.items.reduce((a, pi) => {
+                const l = lineas.find((x) => x.sku === pi.sku);
+                return a + pi.cantidad * (l?.precio ?? 0);
+              }, 0);
               return (
                 <div key={par.id} className="rounded-lg border border-border p-3 space-y-2.5">
                   <div className="flex items-center justify-between">
@@ -2200,25 +2230,39 @@ function PasoConfirmar({
 
                   <div>
                     <p className="text-[10px] text-muted-foreground mb-1.5">
-                      Items de esta partida
+                      Cuánto de cada item va en esta partida
                     </p>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="space-y-1.5">
                       {lineas.map((l) => {
-                        const asignado = par.skus.includes(l.sku);
+                        const enPartida =
+                          par.items.find((i) => i.sku === l.sku)?.cantidad ?? 0;
+                        const libre = sinAsignar(l.sku);
                         return (
-                          <button
-                            key={l.sku}
-                            onClick={() => alternarSku(par.id, l.sku)}
-                            aria-pressed={asignado}
-                            className={cn(
-                              "tabular text-[10.5px] rounded-full px-2 py-1 border transition-colors",
-                              asignado
-                                ? "bg-primary/10 border-primary/30 text-primary"
-                                : "border-border text-muted-foreground hover:border-border-strong"
-                            )}
-                          >
-                            {l.sku}
-                          </button>
+                          <div key={l.sku} className="flex items-center gap-2">
+                            <span className="font-mono text-[10.5px] text-muted-foreground w-24 shrink-0">
+                              {l.sku}
+                            </span>
+                            <input
+                              value={enPartida || ""}
+                              placeholder="0"
+                              inputMode="numeric"
+                              aria-label={`Unidades de ${l.sku} en la partida ${i + 1}`}
+                              onChange={(e) =>
+                                setCantidadPartida(
+                                  par.id,
+                                  l.sku,
+                                  parseInt(e.target.value.replace(/[^\d]/g, "") || "0", 10)
+                                )
+                              }
+                              className="tabular w-20 h-8 text-center text-[12px] rounded-md border border-border bg-surface shadow-sunken focus:outline-none focus:ring-2 focus:ring-ring"
+                            />
+                            <span className="text-[10.5px] text-muted-foreground tabular">
+                              de {l.cantidad}
+                              {libre > 0 && (
+                                <span className="text-warning"> · {libre} sin asignar</span>
+                              )}
+                            </span>
+                          </div>
                         );
                       })}
                     </div>
@@ -2241,10 +2285,10 @@ function PasoConfirmar({
               </Button>
               {/* La suma de las partidas tiene que ser el total del pedido: si
                   no, se está facturando de más o de menos. */}
-              {!partidasCuadran && (
+              {!partidasCuadranOk && (
                 <p className="text-[11px] text-warning flex items-center gap-1.5">
                   <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-                  Hay items sin asignar o repetidos
+                  Quedan unidades sin asignar
                 </p>
               )}
             </div>
