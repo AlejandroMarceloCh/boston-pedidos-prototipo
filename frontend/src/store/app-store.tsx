@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import {
   CAUSA_SALDO_LABEL,
   type CausaSaldo,
+  type Partida,
   type PedidoDetalle,
   type PedidoEvento,
   type PedidoItem,
@@ -48,6 +49,8 @@ export type BorradorInput = {
   aplicarInicial: boolean;
   slot3: number;
   nota: string;
+  /** RF-41/42. Vacío = una sola partida implícita. */
+  partidas?: Partida[];
   /** RF-17: fecha de entrega comprometida (ISO `YYYY-MM-DD`). "" si aún no se fijó. */
   fechaEntrega: string;
 };
@@ -76,7 +79,7 @@ export type Action =
       decision: "aprobada" | "rechazada";
       motivo?: string;
     }
-  | { type: "pedido/facturar"; nro: string; fecha: string; factura: string }
+  | { type: "pedido/facturar"; nro: string; fecha: string; facturas: string[] }
   | { type: "pedido/entregar"; nro: string; fecha: string }
   | { type: "pedido/anular"; nro: string; fecha: string; motivo?: string }
   | { type: "pedido/causaSaldo"; nro: string; fecha: string; causa: CausaSaldo }
@@ -191,16 +194,36 @@ export function reducer(state: AppState, action: Action): AppState {
     case "pedido/facturar": {
       const p = state.pedidos[action.nro];
       if (!p) return state;
-      return {
-        ...state,
-        pedidos: {
-          ...state.pedidos,
-          [action.nro]: conEvento(
-            { ...p, estado: "facturado", factura: action.factura },
-            { fecha: action.fecha, tipo: "facturado", detalle: `Factura ${action.factura}` }
-          ),
-        },
+
+      // RF-41: se emite una factura por partida. Con una sola partida —el caso
+      // corriente— esto es exactamente lo de antes: una factura y el pedido
+      // pasa a facturado.
+      const partidasFacturadas = (p.partidas ?? []).map((par, i) => ({
+        ...par,
+        factura: par.factura ?? action.facturas[i],
+      }));
+
+      let actualizado: PedidoDetalle = {
+        ...p,
+        estado: "facturado",
+        factura: action.facturas[0],
+        partidas: partidasFacturadas.length ? partidasFacturadas : undefined,
       };
+
+      // Un evento por factura: el historial tiene que poder explicar a quién se
+      // le facturó qué, que es el punto de partir el pedido.
+      action.facturas.forEach((nroFactura, i) => {
+        const par = partidasFacturadas[i];
+        actualizado = conEvento(actualizado, {
+          fecha: action.fecha,
+          tipo: "facturado",
+          detalle: par
+            ? `Factura ${nroFactura} · ${par.razonSocial} (RUC ${par.ruc})`
+            : `Factura ${nroFactura}`,
+        });
+      });
+
+      return { ...state, pedidos: { ...state.pedidos, [action.nro]: actualizado } };
     }
 
     case "pedido/entregar": {
@@ -385,6 +408,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         tieneSaldo: t.totalSaldoUnidades > 0 || (previo?.tieneSaldo ?? false),
         saldoUnidades: t.totalSaldoUnidades > 0 ? t.totalSaldoUnidades : previo?.saldoUnidades,
         direccionId: input.direccionId,
+        partidas: input.partidas?.length ? input.partidas : undefined,
         nota: input.nota,
         fechaEntrega: input.fechaEntrega || previo?.fechaEntrega,
         aplicarInicial: input.aplicarInicial,
@@ -459,13 +483,17 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       },
       resolverSolicitud: (nro, decision, motivo) =>
         dispatch({ type: "solicitud/resolver", nro, fecha: ahoraTexto(), decision, motivo }),
-      facturarPedido: (nro) =>
-        dispatch({
-          type: "pedido/facturar",
-          nro,
-          fecha: ahoraTexto(),
-          factura: siguienteFactura(state),
-        }),
+      facturarPedido: (nro) => {
+        // Un correlativo por partida, consecutivos entre sí.
+        const p = state.pedidos[nro];
+        const cuantas = Math.max(1, p?.partidas?.length ?? 1);
+        const base = parseInt(siguienteFactura(state).split("-")[1], 10);
+        const facturas = Array.from(
+          { length: cuantas },
+          (_, i) => `F001-${base + i}`
+        );
+        dispatch({ type: "pedido/facturar", nro, fecha: ahoraTexto(), facturas });
+      },
       entregarPedido: (nro) =>
         dispatch({ type: "pedido/entregar", nro, fecha: ahoraTexto() }),
       anularPedido: (nro, motivo) =>

@@ -166,7 +166,7 @@ describe("ciclo de vida del pedido", () => {
       type: "pedido/facturar",
       nro: borrador.nro,
       fecha: "2027-03-15 11:00",
-      factura: "F001-12391",
+      facturas: ["F001-12391"],
     });
     expect(s.pedidos[borrador.nro].estado).toBe("facturado");
     expect(s.pedidos[borrador.nro].factura).toBe("F001-12391");

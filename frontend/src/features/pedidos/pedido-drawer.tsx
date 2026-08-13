@@ -38,6 +38,7 @@ import {
   CAUSA_SALDO_LABEL,
   ESTADO_SOLICITUD_LABEL,
   esSolicitud,
+  importeDePartida,
   saldoVencido,
   type CausaSaldo,
   type EstadoPedido,
@@ -231,6 +232,55 @@ export function PedidoDrawer({
                     </table>
                   </div>
                 </div>
+
+                {/* RF-41/42: a quién se factura y dónde se entrega cada parte */}
+                {(pedido.partidas?.length ?? 0) > 1 && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2">
+                        Facturación y entrega ·{" "}
+                        <span className="tabular">{pedido.partidas!.length}</span> partidas
+                      </p>
+                      <div className="space-y-2">
+                        {pedido.partidas!.map((par, i) => {
+                          const cli = CLIENTES.find((c) => c.codigo === pedido.clienteId);
+                          const dir = cli?.direccionesEntrega.find(
+                            (d) => d.id === par.direccionId
+                          );
+                          return (
+                            <div
+                              key={par.id}
+                              className="rounded-lg border border-border p-3 text-[12px]"
+                            >
+                              <div className="flex items-center justify-between gap-2">
+                                <span className="font-medium">
+                                  Partida <span className="tabular">{i + 1}</span>
+                                </span>
+                                <span className="tabular font-semibold">
+                                  {formatCurrency(importeDePartida(pedido, par))}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-1">
+                                RUC <span className="tabular">{par.ruc}</span> ·{" "}
+                                {par.razonSocial}
+                              </p>
+                              {dir && (
+                                <p className="text-[11px] text-muted-foreground">
+                                  Entrega: {dir.nombre} — {dir.direccion}
+                                </p>
+                              )}
+                              <p className="text-[11px] text-muted-foreground tabular mt-1">
+                                {par.skus.length} items
+                                {par.factura && ` · ${par.factura}`}
+                              </p>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                )}
 
                 <Separator />
 

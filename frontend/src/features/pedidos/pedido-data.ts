@@ -72,6 +72,58 @@ export const CAUSA_SALDO_LABEL: Record<CausaSaldo, string> = {
   boston: "Responsabilidad de Boston",
 };
 
+/**
+ * RF-41 + RF-42: un pedido puede facturarse partido entre varios RUC y
+ * entregarse en varios destinos.
+ *
+ *   *"de esas 100,000, 45,000 me las facturas a mí. De estas 25,000 me las
+ *   facturas a ella. Y además quiero que esa me la entregues en ese sitio, y en
+ *   ese otro sitio."*
+ *
+ * Cada partida se lleva un subconjunto de las líneas del pedido, con su RUC de
+ * facturación y su dirección de entrega. Un pedido normal tiene una sola
+ * partida, así que el flujo habitual no cambia.
+ */
+export type Partida = {
+  id: string;
+  /** RUC al que se factura. Por defecto, el del cliente del pedido. */
+  ruc: string;
+  /** A nombre de quién se emite. */
+  razonSocial: string;
+  /** Dirección de entrega, de las que tiene cargadas el cliente. */
+  direccionId: string;
+  /** SKU de las líneas del pedido que van en esta partida. */
+  skus: string[];
+  /** Factura emitida para esta partida, si ya se facturó. */
+  factura?: string;
+};
+
+/**
+ * Partidas efectivas de un pedido. Sin partidas explícitas se devuelve una
+ * sola, con el cliente y la dirección del pedido: así el resto del código no
+ * necesita distinguir entre un pedido partido y uno normal.
+ */
+export function partidasDe(p: PedidoDetalle, rucCliente = ""): Partida[] {
+  if (p.partidas?.length) return p.partidas;
+  return [
+    {
+      id: "1",
+      ruc: rucCliente,
+      razonSocial: p.cliente,
+      direccionId: p.direccionId ?? "1",
+      skus: p.items.map((i) => i.sku),
+      factura: p.factura,
+    },
+  ];
+}
+
+/** Importe de una partida: la suma de lo atendible de sus líneas. */
+export function importeDePartida(p: PedidoDetalle, partida: Partida): number {
+  return p.items
+    .filter((i) => partida.skus.includes(i.sku))
+    .reduce((a, i) => a + (i.atendible ?? i.cantidad) * i.precio, 0);
+}
+
 /** Un documento es solicitud solo si lo dice; todo lo anterior era pedido. */
 export function esSolicitud(p: PedidoDetalle): boolean {
   return p.tipo === "solicitud";
@@ -121,6 +173,11 @@ export type PedidoDetalle = {
   eventos: PedidoEvento[];
   // Lo que el asistente necesita para poder retomar un borrador tal como quedó.
   direccionId?: string;
+  /**
+   * RF-41/RF-42. Ausente = una sola partida implícita (ver `partidasDe`), que
+   * es el caso de todo lo guardado antes y del pedido corriente.
+   */
+  partidas?: Partida[];
   nota?: string;
   aplicarInicial?: boolean;
   slot3?: number;

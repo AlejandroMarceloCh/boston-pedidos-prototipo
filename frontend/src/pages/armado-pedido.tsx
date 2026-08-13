@@ -14,6 +14,7 @@ import {
   ArrowRight,
   ArrowLeft,
   MoreHorizontal,
+  AlertTriangle,
   Package,
   X,
 } from "lucide-react";
@@ -51,7 +52,7 @@ import {
 import { calcularTotales, type LineaCalculada } from "@/lib/pedido-calc";
 import { useStore } from "@/store/app-store";
 import { usePedidos, useStock } from "@/store/hooks";
-import type { PedidoItem } from "@/features/pedidos/pedido-data";
+import type { PedidoItem, Partida } from "@/features/pedidos/pedido-data";
 import { MatrizCarga, ResumenSeleccion } from "@/features/pedidos/matriz-carga";
 
 type Linea = {
@@ -97,6 +98,8 @@ export default function ArmadoPedidoPage() {
   const [aplicarInicial, setAplicarInicial] = useState(enEdicion?.aplicarInicial ?? true);
   const [slot3, setSlot3] = useState(enEdicion?.slot3 ?? 0);
   const [nota, setNota] = useState(enEdicion?.nota ?? "");
+  // RF-41/42: por defecto una sola partida implícita; el paso 4 permite partir.
+  const [partidas, setPartidas] = useState<Partida[]>(enEdicion?.partidas ?? []);
   // RF-17: fecha de entrega comprometida. Vacía en un borrador; obligatoria para confirmar.
   const [fechaEntrega, setFechaEntrega] = useState(enEdicion?.fechaEntrega ?? "");
   const [confirmarOpen, setConfirmarOpen] = useState(false);
@@ -147,7 +150,16 @@ export default function ArmadoPedidoPage() {
 
   // RF-17: no se confirma un pedido sin fecha de entrega comprometida. Es la
   // referencia contra la que después se mide de quién es la culpa del saldo.
-  const puedeConfirmar = !!cliente && lineas.length > 0 && fechaEntrega !== "";
+  // RF-41: si el pedido se parte, cada línea tiene que estar en exactamente una
+  // partida. Facturar de más o dejar items fuera de toda factura no es un
+  // detalle cosmético.
+  const skusAsignados = partidas.flatMap((p) => p.skus);
+  const partidasValidas =
+    partidas.length <= 1 ||
+    (skusAsignados.length === lineas.length &&
+      new Set(skusAsignados).size === lineas.length);
+  const puedeConfirmar =
+    !!cliente && lineas.length > 0 && fechaEntrega !== "" && partidasValidas;
 
   // El cálculo vive en lib/pedido-calc para que el store guarde exactamente
   // el mismo número que muestra esta pantalla.
@@ -527,6 +539,8 @@ export default function ArmadoPedidoPage() {
                 setNota={setNota}
                 fechaEntrega={fechaEntrega}
                 setFechaEntrega={setFechaEntrega}
+                partidas={partidas}
+                setPartidas={setPartidas}
               />
             )}
           </motion.div>
@@ -591,7 +605,11 @@ export default function ArmadoPedidoPage() {
               onClick={() => setConfirmarOpen(true)}
               disabled={!puedeConfirmar}
               title={
-                puedeConfirmar ? undefined : "Falta la fecha de entrega comprometida."
+                puedeConfirmar
+                  ? undefined
+                  : !partidasValidas
+                    ? "Hay items sin asignar o repetidos entre las partidas."
+                    : "Falta la fecha de entrega comprometida."
               }
               aria-label="Confirmar pedido, abrir diálogo de doble confirmación"
               className="gap-1.5 text-[13px]"
@@ -1908,6 +1926,8 @@ function PasoConfirmar({
   setNota,
   fechaEntrega,
   setFechaEntrega,
+  partidas,
+  setPartidas,
 }: {
   cliente: Cliente;
   direccionId: string;
@@ -1923,8 +1943,65 @@ function PasoConfirmar({
   setNota: (v: string) => void;
   fechaEntrega: string;
   setFechaEntrega: (v: string) => void;
+  partidas: Partida[];
+  setPartidas: (p: Partida[]) => void;
 }) {
   const direccion = cliente.direccionesEntrega.find((d) => d.id === direccionId);
+  const [partirOpen, setPartirOpen] = useState((partidas?.length ?? 0) > 1);
+
+  const agregarPartida = () => {
+    const id = String((partidas.at(-1)?.id ? Number(partidas.at(-1)!.id) : partidas.length) + 1);
+    setPartidas([
+      ...partidas,
+      {
+        id,
+        ruc: cliente.ruc,
+        razonSocial: cliente.razonSocial,
+        direccionId: cliente.direccionesEntrega[0]?.id ?? "1",
+        skus: [],
+      },
+    ]);
+  };
+
+  const quitarPartida = (id: string) => {
+    const resto = partidas.filter((p) => p.id !== id);
+    const huerfanos = partidas.find((p) => p.id === id)?.skus ?? [];
+    // Los items de la partida que se va vuelven a la primera, para que no
+    // queden fuera de toda factura.
+    if (resto[0]) {
+      resto[0] = {
+        ...resto[0],
+        skus: [...new Set([...resto[0].skus, ...huerfanos])],
+      };
+    }
+    setPartidas(resto);
+  };
+
+  const editarPartida = (id: string, cambios: Partial<Partida>) =>
+    setPartidas(partidas.map((p) => (p.id === id ? { ...p, ...cambios } : p)));
+
+  /** Un SKU pertenece a una sola partida: asignarlo lo quita de las demás. */
+  const alternarSku = (id: string, sku: string) =>
+    setPartidas(
+      partidas.map((p) => {
+        if (p.id === id) {
+          return {
+            ...p,
+            skus: p.skus.includes(sku)
+              ? p.skus.filter((s) => s !== sku)
+              : [...p.skus, sku],
+          };
+        }
+        return { ...p, skus: p.skus.filter((s) => s !== sku) };
+      })
+    );
+
+  // Invariante: cada línea del pedido está en exactamente una partida.
+  const asignados = partidas.flatMap((p) => p.skus);
+  const partidasCuadran =
+    partidas.length <= 1 ||
+    (asignados.length === lineas.length &&
+      new Set(asignados).size === lineas.length);
   // No se puede comprometer una entrega para ayer.
   const hoyISO = new Date().toISOString().slice(0, 10);
 
@@ -1977,6 +2054,156 @@ function PasoConfirmar({
         <p className="mt-1 text-[10px] text-muted-foreground">
           Referencia para medir el saldo. Requerida para confirmar.
         </p>
+      </div>
+
+
+      {/* RF-41 + RF-42 · Facturación partida y multi-destino */}
+      <div className="mt-3 rounded-lg border border-border bg-surface shadow-card overflow-hidden">
+        <button
+          onClick={() => setPartirOpen((o) => !o)}
+          aria-expanded={partirOpen}
+          aria-controls="partidas-contenido"
+          className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-secondary/40 transition-colors"
+        >
+          <span>
+            <span className="text-[12.5px] font-medium">
+              Facturar o entregar por partes
+            </span>
+            <span className="block text-[10.5px] text-muted-foreground mt-0.5">
+              {partidas.length > 1
+                ? `${partidas.length} partidas`
+                : "Todo a un RUC y una dirección"}
+            </span>
+          </span>
+          <ChevronRight
+            className={cn(
+              "h-4 w-4 text-muted-foreground transition-transform",
+              partirOpen && "rotate-90"
+            )}
+            aria-hidden="true"
+          />
+        </button>
+
+        {partirOpen && (
+          <div id="partidas-contenido" className="px-4 pb-4 space-y-3">
+            <Separator />
+            <p className="text-[11px] text-muted-foreground">
+              Cada partida se factura a un RUC y se entrega en una dirección. Los items
+              sin asignar van a la primera.
+            </p>
+
+            {partidas.map((par, i) => {
+              const importe = lineas
+                .filter((l) => par.skus.includes(l.sku))
+                .reduce((a, l) => a + l.cantidad * l.precio, 0);
+              return (
+                <div key={par.id} className="rounded-lg border border-border p-3 space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-[11px] font-medium">
+                      Partida <span className="tabular">{i + 1}</span>
+                    </p>
+                    {partidas.length > 1 && (
+                      <button
+                        onClick={() => quitarPartida(par.id)}
+                        aria-label={`Quitar partida ${i + 1}`}
+                        className="text-[11px] text-destructive hover:underline"
+                      >
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <Label htmlFor={`ruc-${par.id}`} className="text-[10px] text-muted-foreground">
+                        RUC de facturación
+                      </Label>
+                      <Input
+                        id={`ruc-${par.id}`}
+                        value={par.ruc}
+                        inputMode="numeric"
+                        onChange={(e) =>
+                          editarPartida(par.id, {
+                            ruc: e.target.value.replace(/[^\d]/g, "").slice(0, 11),
+                          })
+                        }
+                        className="mt-1 h-8 text-[12px] tabular"
+                      />
+                    </div>
+                    <div>
+                      <Label
+                        htmlFor={`dir-${par.id}`}
+                        className="text-[10px] text-muted-foreground"
+                      >
+                        Entregar en
+                      </Label>
+                      <select
+                        id={`dir-${par.id}`}
+                        value={par.direccionId}
+                        onChange={(e) => editarPartida(par.id, { direccionId: e.target.value })}
+                        className="mt-1 w-full h-8 rounded-md border border-border bg-surface px-2 text-[12px] shadow-sunken focus:outline-none focus:ring-2 focus:ring-ring"
+                      >
+                        {cliente.direccionesEntrega.map((d) => (
+                          <option key={d.id} value={d.id}>
+                            {d.nombre}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] text-muted-foreground mb-1.5">
+                      Items de esta partida
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {lineas.map((l) => {
+                        const asignado = par.skus.includes(l.sku);
+                        return (
+                          <button
+                            key={l.sku}
+                            onClick={() => alternarSku(par.id, l.sku)}
+                            aria-pressed={asignado}
+                            className={cn(
+                              "tabular text-[10.5px] rounded-full px-2 py-1 border transition-colors",
+                              asignado
+                                ? "bg-primary/10 border-primary/30 text-primary"
+                                : "border-border text-muted-foreground hover:border-border-strong"
+                            )}
+                          >
+                            {l.sku}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-muted-foreground">
+                    Importe de la partida:{" "}
+                    <span className="tabular font-medium text-foreground">
+                      {formatCurrency(importe)}
+                    </span>
+                  </p>
+                </div>
+              );
+            })}
+
+            <div className="flex items-center justify-between">
+              <Button variant="outline" size="sm" onClick={agregarPartida} className="gap-1.5">
+                <Plus className="h-3.5 w-3.5" />
+                Agregar partida
+              </Button>
+              {/* La suma de las partidas tiene que ser el total del pedido: si
+                  no, se está facturando de más o de menos. */}
+              {!partidasCuadran && (
+                <p className="text-[11px] text-warning flex items-center gap-1.5">
+                  <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                  Hay items sin asignar o repetidos
+                </p>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Items */}
