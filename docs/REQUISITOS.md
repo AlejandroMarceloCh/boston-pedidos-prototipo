@@ -25,14 +25,15 @@ La columna «Falta» agrupa ❌ y ⛔.
 
 | Área | Hecho | Parcial | Falta |
 |---|---|---|---|
-| Catálogo y stock | 3 | 2 | 1 |
-| Toma de pedidos | 6 | 2 | 1 |
-| Pedido vs solicitud | 3 | 1 | 1 |
-| Descuentos y beneficios | 3 | 1 | 6 |
-| Facturación y entrega | 3 | 1 | 2 |
+| Catálogo y stock | 4 | 1 | 1 |
+| Toma de pedidos | 7 | 1 | 1 |
+| Pedido vs solicitud | 4 | 0 | 1 |
+| Descuentos y beneficios | 3 | 2 | 5 |
+| Facturación y entrega | 5 | 1 | 0 |
 | Cliente y crédito | 1 | 1 | 4 |
-| Avisos y trazabilidad | 2 | 2 | 1 |
+| Avisos y trazabilidad | 3 | 2 | 0 |
 | No funcionales | 1 | 1 | 4 |
+| **Total** | **28** | **9** | **16** |
 
 ---
 
@@ -69,7 +70,7 @@ Y el problema de fondo, que es de stock:
 | ID | Requisito | Estado |
 |---|---|---|
 | **RF-01** | Mostrar el stock **disponible en el momento**, no el de la mañana. *"necesitas algo que se alimente del stock actual"* | ✅ |
-| **RF-02** | El stock se descuenta **al confirmar el pedido**, no al facturar. *"hoy nuestro stock se ve afectado cuando se factura. No cuando hay un pedido. ¿Debería ser así? No. Debería ser bajo el pedido."* | 🟡 La reserva al confirmar sí funciona. Las **"48 horas"** que se prometen en tres pantallas **no existen como lógica**: no hay vencimiento ni liberación automática. Es texto. |
+| **RF-02** | El stock se descuenta **al confirmar el pedido**, no al facturar. *"hoy nuestro stock se ve afectado cuando se factura. No cuando hay un pedido. ¿Debería ser así? No. Debería ser bajo el pedido."* | ✅ Reserva al confirmar y **vencimiento real**: pasadas las horas de reserva el stock se libera solo, y el detalle lo avisa. El plazo (48 h) sigue sin confirmarse — pregunta 10 — pero es una constante |
 | **RF-03** | Anular un pedido devuelve el stock. | ✅ |
 | **RF-04** | Buscar artículos por código, nombre, línea o género. | ✅ Corregido: el género no estaba en la búsqueda del catálogo, y en el asistente se comparaba contra el código crudo ("dam"), no contra la etiqueta |
 | **RF-05** | El stock debe venir del ERP en vivo, no de datos locales. | ❌ Requiere backend |
@@ -86,7 +87,7 @@ Y el problema de fondo, que es de stock:
 | **RF-12** | Cargar en **docenas**, que es la unidad del negocio, permitiendo unidades sueltas al ajustar. | ✅ |
 | **RF-13** | Editar precio unitario por línea. | ✅ |
 | **RF-14** | Guardar borrador y retomarlo después. | ✅ |
-| **RF-15** | Funcionar en **celular y tablet**, no solo escritorio. *"que el mismo cliente pueda hacer su pedido (…) desde un celular, desde un iPad, desde una computadora"* | 🟡 Se puede completar un pedido en móvil y tablet (corregido: bajo 1024px no había botón para continuar). Falta pulir la matriz, que exige desplazamiento lateral. |
+| **RF-15** | Funcionar en **celular y tablet**, no solo escritorio. *"que el mismo cliente pueda hacer su pedido (…) desde un celular, desde un iPad, desde una computadora"* | ✅ Se completa el pedido en cualquier ancho, y la matriz pasa a una tarjeta por color en pantallas chicas. Falta medirlo con vendedores reales (RF-16) |
 | **RF-16** | Usarse **frente al cliente**, sin que se impaciente. | 🟡 Por validar en P7 |
 | **RF-17** | **Fecha de entrega comprometida** en el pedido. Sin ella no se puede saber si un saldo es culpa de Boston. *"El decir que sí te voy a atender, pero no llego a la fecha"* | ✅ Campo en el pedido, obligatorio para confirmar |
 | **RF-18** | Manejo de **pedidos urgentes**. *"¿Y cómo se hace el tema de urgencias?" — "Yo no sé cómo… yo me estoy enterando de esto."* | ⛔ Nadie supo explicar cómo funciona hoy |
@@ -108,7 +109,7 @@ El ejemplo: el cliente quiere 500 y hay 20 → *"quiero las 20, y esas 480 es un
 | **RF-21** | La solicitud se aprueba o se rechaza explícitamente. *"o lo atiendo o no lo atiendo"* | ✅ Desde el detalle, con rastro en el historial |
 | **RF-22** | El cliente puede originar solicitudes, incluso **sin ver el stock**. *"en el término de la solicitud ni siquiera tenga que mirar nuestros stocks el cliente"* | ❌ El modelo ya lo soporta; falta el acceso del cliente, que necesita backend |
 | **RF-23** | Un pedido no debe comprometer lo que no existe. *"nosotros nos comprometemos aun por lo que no tenemos"* — política que la reunión califica de errada. | ✅ Ahora se puede **pedir** de más, pero el pedido confirmado solo contiene lo atendible: el resto va a la solicitud. Se registra la demanda sin comprometerla |
-| **RF-24** | La proyección de demanda debe alimentarse de pedidos reales, no inflados. *"¿qué pasa si el pedido te inflan y luego te devuelven la mercadería? Te engañas tú solo."* Conecta con producción: *"tiene que ver con temas de producción"* | 🟡 Los KPIs, el total del mes y los listados separan pedidos de solicitudes. Falta explotar la demanda registrada hacia producción |
+| **RF-24** | La proyección de demanda debe alimentarse de pedidos reales, no inflados. *"¿qué pasa si el pedido te inflan y luego te devuelven la mercadería? Te engañas tú solo."* Conecta con producción: *"tiene que ver con temas de producción"* | ✅ Pedidos y solicitudes separados en KPIs y listados, más el informe de **demanda no atendida** agrupado por artículo. Una solicitud rechazada no empuja producción |
 
 ---
 
@@ -127,7 +128,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | **RF-32** | **El beneficio se calcula sobre lo atendible, no sobre lo solicitado.** *"antes, para acceder a un beneficio, te pedían lo que no teníamos. Sabían que no había."* · *"ahora se está diciendo sobre el stock que tenemos"* · *"¿Qué es lo real que ha comprado?"* | ✅ `lib/pedido-calc.ts` recorta cada línea a `min(pedido, stock)`; las docenas y el subtotal salen de lo atendible |
 | **RF-33** | **Bonificaciones**, mecanismo distinto del descuento. *"tanto en formas de pago como en mecanismos de bonificación"* · *"esta es la bonificación que te toca"* | ❌ Falta definir la mecánica (¿producto gratis?) |
 | **RF-34** | La **forma de pago** influye en el esquema comercial. | ❌ Se guarda `condicion` pero no afecta ningún cálculo |
-| **RF-35** | Condiciones de venta reales: **E/C/L/O/D** = contra entrega, contado, letras, **obsequio**, **donación** (fuente C). | ❌ El prototipo solo contempla contado y letras |
+| **RF-35** | Condiciones de venta reales: **E/C/L/O/D** = contra entrega, contado, letras, **obsequio**, **donación** (fuente C). | 🟡 Las cinco se eligen y se guardan; obsequio y donación quedan marcadas como "sin cobro". **Cómo se documentan** es pregunta para Finanzas |
 | **RF-36** | Descuento diferenciado por **tipo de cliente** (distribuidor vs minorista). | ❌ La interfaz rotula "Distribuidor · descuento adicional" pero el cálculo no lo usa |
 | **RF-37** | Autorización para descuentos manuales por encima del tope, con registro de quién autoriza. | 🟡 Pide confirmación en pantalla; no registra autorizante |
 | **RF-38** | El **saldo conserva el descuento de su campaña original**. *"me tienes que respetar el descuento de esa vez"*, siempre que *"el error sea de la empresa"*. | ❌ |
@@ -142,8 +143,8 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | **RF-40** | Emitir factura al pedido confirmado. | 🟡 Genera correlativo, sin documento real |
 | **RF-41** | **Facturación partida entre varios RUC.** *"de esas 100,000, 45,000 me las facturas a mí, 25,000 a ella"* | ✅ Partidas con RUC propio; una factura por partida y un evento por cada una |
 | **RF-42** | **Entrega en varios destinos.** *"y quiero que esa me la entregues en ese sitio, y en ese otro sitio"* | ✅ Cada partida tiene su dirección de entrega |
-| **RF-43** | **Guía de remisión** como documento separado de la factura. *"no es con la guía, es con la carga del almacén. Guía, factura, guía, factura."* | ❌ |
-| **RF-44** | Nota de crédito al anular un pedido facturado. | ❌ |
+| **RF-43** | **Guía de remisión** como documento separado de la factura. *"no es con la guía, es con la carga del almacén. Guía, factura, guía, factura."* | ✅ Se emite al entregar, con correlativo propio (T001) y una por destino |
+| **RF-44** | Nota de crédito al anular un pedido facturado. | ✅ Una por factura emitida (FC01). Anular un pedido solo confirmado no emite nada |
 | **RF-45** | Registrar el **saldo** (lo no atendido) y su causa: responsabilidad de Boston o falta de insumo. | ✅ `causaSaldo` (`insumo` / `boston`), reclasificable desde el detalle y con aviso cuando vence la fecha comprometida |
 
 ---
@@ -169,7 +170,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | **RF-61** | Estados: borrador → confirmado → facturado → entregado, más anulado. | ✅ |
 | **RF-62** | **Confirmación automática al cliente** al cerrar el pedido. *"automáticamente uno se refleje acá y otro se dispara al cliente para que te lo confirme"* — hoy el cliente se entera cuando llega la mercadería. | 🟡 Abre WhatsApp con el texto y el número, y **registra que se envió**. El disparo **automático** necesita WhatsApp Business API y backend |
 | **RF-63** | El cliente puede aceptar o corregir el pedido antes de que se despache. | 🟡 Se registra a mano si aceptó o pidió correcciones, con rastro. El canal donde el cliente responde solo necesita backend |
-| **RF-64** | Reportes de ventas y almacén. *"se tiene que generar información de las ventas, del almacén, de todo"* | ❌ |
+| **RF-64** | Reportes de ventas y almacén. *"se tiene que generar información de las ventas, del almacén, de todo"* | ✅ Pantalla de Informes: ventas por cliente y por condición, stock crítico y demanda no atendida |
 
 ---
 
@@ -180,7 +181,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | **RNF-01** | El sistema debe **cruzar todo el negocio**: cliente, estado, producto, stock, venta. | ❌ Requiere integración con el ERP |
 | **RNF-02** | **Seguridad**, con revisión ofensiva antes de exponerlo. *"Hagan ethical hacking a todos sus códigos (…) la misma tienda online tiene 35 mil intentos"* | ❌ Pendiente hasta que haya backend y URL pública |
 | **RNF-03** | Accesible desde fuera de la oficina. *"necesitamos una URL para salir a la calle"* | ❌ |
-| **RNF-04** | Robustez. *"que funcione robustamente"* | 🟡 22 tests sobre cálculo, transiciones de estado y stock. Sin tests de interfaz |
+| **RNF-04** | Robustez. *"que funcione robustamente"* | 🟡 53 tests sobre cálculo, transiciones, stock, split, partidas y documentos. Sin tests de interfaz (no hay jsdom ni testing-library) |
 | **RNF-05** | Los totales del sistema deben ser exactos y consistentes en toda la aplicación. | ✅ Corregido: había **cuatro** sumas fuera de `pedido-calc.ts` que usaban lo solicitado mientras el subtotal mostrado salía de lo atendible. Hoy todas las pantallas pintan el desglose del cálculo central, con test de invariante |
 | **RNF-06** | Debe ser más rápido que el cuaderno. *"eso ya lo hago en el cuaderno más rápido"* es una red flag declarada en C. | ❌ Sin medir; se cronometra en P7 |
 
@@ -219,16 +220,40 @@ del ERP y del guion P7.
 
 ---
 
-## 11. Qué hacer primero
+## 11. Estado y qué sigue
 
-**Ya cerrado** (agosto 2026): RF-32 descuento sobre lo atendible · RF-17 fecha comprometida ·
-RF-45 causa del saldo · RF-15 salida en móvil · RNF-05 cálculo único · RF-20 a RF-24 el split
-pedido/solicitud · **RF-41 y RF-42 facturación partida y multi-destino** · RF-62/63 en su
-parte manual · y el barrido de defectos colaterales.
+**Cerrado en agosto de 2026** — todo lo que se podía construir sin backend y sin
+respuestas pendientes:
 
-Lo que sigue:
+RF-02 vencimiento de la reserva · RF-04 búsqueda por género · RF-15 móvil y tablet ·
+RF-17 fecha comprometida · RF-20 a RF-24 split pedido/solicitud · RF-32 descuento sobre lo
+atendible · RF-35 condiciones de venta · RF-41 y RF-42 facturación partida y multi-destino ·
+RF-43 guía de remisión · RF-44 nota de crédito · RF-45 causa del saldo · RF-50 estadísticas
+de cliente · RF-62 y RF-63 en su parte manual · RF-64 informes · RNF-05 cálculo único.
 
-1. **Vencimiento de la reserva** (RF-02): las 48 horas son texto; hay que decidir si existen
-   de verdad y quién libera el stock cuando pasan (pregunta 10).
-3. Resto de descuentos (RF-33 a RF-39), cuando Comercial responda las preguntas 4, 5, 7 y 8.
-4. Crédito y prioridad (RF-51, RF-53), que dependen de datos que hoy no existen en ninguna base.
+### Bloqueado por las entrevistas P7
+
+No se puede construir sin que Comercial o Finanzas respondan (§9):
+
+- **RF-33** bonificaciones — no se sabe si son producto gratis o porcentaje (pregunta 4).
+- **RF-34, RF-36** cómo influyen la forma de pago y el tipo de cliente (pregunta 5).
+- **RF-37** qué son los slots 3 y 4, quién autoriza y con qué tope (pregunta 7).
+- **RF-38, RF-39** arrastre del descuento al saldo y notas de crédito como saldo a favor.
+- **RF-18** urgencias — en la reunión nadie supo explicar cómo funcionan hoy.
+- **RF-51, RF-52, RF-53, RF-54** crédito, muestras, prioridad y morosos. La auditoría del
+  ERP indica que **el dato no existe en ninguna de las dos bases**.
+
+### Bloqueado por el backend
+
+- **RF-05** stock en vivo del ERP · **RF-06** concurrencia real entre vendedores.
+- **RF-22** el cliente originando solicitudes por su cuenta.
+- **RF-62** disparo automático del aviso · **RF-63** canal donde el cliente responde solo.
+- **RNF-01** cruce con el resto del negocio · **RNF-02** seguridad y revisión ofensiva ·
+  **RNF-03** acceso desde fuera de la oficina.
+
+### Deuda conocida
+
+- **RNF-04**: hay 53 tests sobre la lógica, ninguno de interfaz. No están instalados jsdom
+  ni testing-library; los dos tests de layout inspeccionan el fuente, que es frágil.
+- **RNF-06**: nadie midió todavía si es más rápido que el cuaderno. Se cronometra en P7.
+- **RF-16**: falta probarlo con un vendedor frente a un cliente real.
