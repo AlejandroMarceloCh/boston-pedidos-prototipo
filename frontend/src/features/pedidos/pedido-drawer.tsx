@@ -34,7 +34,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { usePedidos } from "@/store/hooks";
 import { useStore } from "@/store/app-store";
 import type { EstadoPedido } from "./pedido-data";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, formatFechaISO } from "@/lib/utils";
 
 const estadoConfig: Record<
   EstadoPedido,
@@ -154,6 +154,14 @@ export function PedidoDrawer({
                   <DrawerDescription>
                     {pedido.fecha} · {pedido.condicion} ·{" "}
                     <span className="tabular">{pedido.moneda}</span>
+                    {pedido.fechaEntrega && (
+                      <>
+                        {" · entrega "}
+                        <span className="tabular">
+                          {formatFechaISO(pedido.fechaEntrega)}
+                        </span>
+                      </>
+                    )}
                   </DrawerDescription>
                 </div>
                 <DrawerCloseButton />

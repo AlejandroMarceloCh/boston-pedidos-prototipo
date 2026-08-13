@@ -39,6 +39,8 @@ export type BorradorInput = {
   aplicarInicial: boolean;
   slot3: number;
   nota: string;
+  /** RF-17: fecha de entrega comprometida (ISO `YYYY-MM-DD`). "" si aún no se fijó. */
+  fechaEntrega: string;
 };
 
 export type Action =
@@ -245,6 +247,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         saldoUnidades: t.totalSaldoUnidades > 0 ? t.totalSaldoUnidades : previo?.saldoUnidades,
         direccionId: input.direccionId,
         nota: input.nota,
+        fechaEntrega: input.fechaEntrega || previo?.fechaEntrega,
         aplicarInicial: input.aplicarInicial,
         slot3: input.slot3,
         factura: previo?.factura,
@@ -302,6 +305,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           aplicarInicial: origen.aplicarInicial ?? true,
           slot3: origen.slot3 ?? 0,
           nota: "",
+          // Un duplicado es un compromiso nuevo: la fecha de entrega no se hereda.
+          fechaEntrega: "",
         });
       },
       setBorradorActivo: (nro) => dispatch({ type: "borrador/activo", nro }),

@@ -86,7 +86,7 @@ Y el problema de fondo, que es de stock:
 | **RF-14** | Guardar borrador y retomarlo después. | ✅ |
 | **RF-15** | Funcionar en **celular y tablet**, no solo escritorio. *"que el mismo cliente pueda hacer su pedido (…) desde un celular, desde un iPad, desde una computadora"* | 🟡 Responsive parcial; la matriz no está adaptada |
 | **RF-16** | Usarse **frente al cliente**, sin que se impaciente. | 🟡 Por validar en P7 |
-| **RF-17** | **Fecha de entrega comprometida** en el pedido. Sin ella no se puede saber si un saldo es culpa de Boston. *"El decir que sí te voy a atender, pero no llego a la fecha"* | ❌ |
+| **RF-17** | **Fecha de entrega comprometida** en el pedido. Sin ella no se puede saber si un saldo es culpa de Boston. *"El decir que sí te voy a atender, pero no llego a la fecha"* | ✅ Campo en el pedido, obligatorio para confirmar |
 | **RF-18** | Manejo de **pedidos urgentes**. *"¿Y cómo se hace el tema de urgencias?" — "Yo no sé cómo… yo me estoy enterando de esto."* | ⛔ Nadie supo explicar cómo funciona hoy |
 
 ---
@@ -122,7 +122,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 |---|---|---|
 | **RF-30** | Mostrar el descuento **mientras se arma el pedido**, no en una liquidación posterior. *"en ese mismo momento debería de saber cuánto le va a tocar el descuento"* | ✅ |
 | **RF-31** | Descuento por volumen según escala de docenas. | ✅ |
-| **RF-32** | **El beneficio se calcula sobre lo atendible, no sobre lo solicitado.** *"antes, para acceder a un beneficio, te pedían lo que no teníamos. Sabían que no había."* · *"ahora se está diciendo sobre el stock que tenemos"* · *"¿Qué es lo real que ha comprado?"* | ❌ **Defecto activo**: hoy el nivel sale del total pedido, incluido el saldo |
+| **RF-32** | **El beneficio se calcula sobre lo atendible, no sobre lo solicitado.** *"antes, para acceder a un beneficio, te pedían lo que no teníamos. Sabían que no había."* · *"ahora se está diciendo sobre el stock que tenemos"* · *"¿Qué es lo real que ha comprado?"* | ✅ `lib/pedido-calc.ts` recorta cada línea a `min(pedido, stock)`; las docenas y el subtotal salen de lo atendible |
 | **RF-33** | **Bonificaciones**, mecanismo distinto del descuento. *"tanto en formas de pago como en mecanismos de bonificación"* · *"esta es la bonificación que te toca"* | ❌ Falta definir la mecánica (¿producto gratis?) |
 | **RF-34** | La **forma de pago** influye en el esquema comercial. | ❌ Se guarda `condicion` pero no afecta ningún cálculo |
 | **RF-35** | Condiciones de venta reales: **E/C/L/O/D** = contra entrega, contado, letras, **obsequio**, **donación** (fuente C). | ❌ El prototipo solo contempla contado y letras |

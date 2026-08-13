@@ -97,6 +97,8 @@ export default function ArmadoPedidoPage() {
   const [aplicarInicial, setAplicarInicial] = useState(enEdicion?.aplicarInicial ?? true);
   const [slot3, setSlot3] = useState(enEdicion?.slot3 ?? 0);
   const [nota, setNota] = useState(enEdicion?.nota ?? "");
+  // RF-17: fecha de entrega comprometida. Vacía en un borrador; obligatoria para confirmar.
+  const [fechaEntrega, setFechaEntrega] = useState(enEdicion?.fechaEntrega ?? "");
   const [confirmarOpen, setConfirmarOpen] = useState(false);
   const [salirOpen, setSalirOpen] = useState(false);
   const [nivelPrevio, setNivelPrevio] = useState<number | null>(null);
@@ -126,6 +128,7 @@ export default function ArmadoPedidoPage() {
     slot3: enEdicion?.slot3 ?? 0,
     aplicarInicial: enEdicion?.aplicarInicial ?? true,
     nota: enEdicion?.nota ?? "",
+    fechaEntrega: enEdicion?.fechaEntrega ?? "",
   });
   const hayCambios =
     JSON.stringify(lineas) !== estadoInicial.current.lineas ||
@@ -133,13 +136,18 @@ export default function ArmadoPedidoPage() {
     direccionId !== estadoInicial.current.direccionId ||
     slot3 !== estadoInicial.current.slot3 ||
     aplicarInicial !== estadoInicial.current.aplicarInicial ||
-    nota.trim() !== estadoInicial.current.nota.trim();
+    nota.trim() !== estadoInicial.current.nota.trim() ||
+    fechaEntrega !== estadoInicial.current.fechaEntrega;
 
   const puedeAvanzar = (() => {
     if (paso === 0) return !!cliente;
     if (paso === 1) return lineas.length > 0;
     return true;
   })();
+
+  // RF-17: no se confirma un pedido sin fecha de entrega comprometida. Es la
+  // referencia contra la que después se mide de quién es la culpa del saldo.
+  const puedeConfirmar = !!cliente && lineas.length > 0 && fechaEntrega !== "";
 
   // El cálculo vive en lib/pedido-calc para que el store guarde exactamente
   // el mismo número que muestra esta pantalla.
@@ -233,7 +241,7 @@ export default function ArmadoPedidoPage() {
       if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
         e.preventDefault();
         if (paso === 3) {
-          setConfirmarOpen(true);
+          if (puedeConfirmar) setConfirmarOpen(true);
         } else if (puedeAvanzar) {
           avanzar();
         }
@@ -247,7 +255,7 @@ export default function ArmadoPedidoPage() {
       if (e.key === "Enter") {
         e.preventDefault();
         if (paso === 3) {
-          setConfirmarOpen(true);
+          if (puedeConfirmar) setConfirmarOpen(true);
         } else if (puedeAvanzar) {
           avanzar();
         }
@@ -287,6 +295,7 @@ export default function ArmadoPedidoPage() {
       aplicarInicial,
       slot3,
       nota,
+      fechaEntrega,
     });
     // A partir del primer guardado se edita siempre el mismo pedido.
     if (!nroPedido) setNroPedido(n);
@@ -297,6 +306,7 @@ export default function ArmadoPedidoPage() {
       slot3,
       aplicarInicial,
       nota,
+      fechaEntrega,
     };
     return n;
   };
@@ -513,6 +523,8 @@ export default function ArmadoPedidoPage() {
                 total={total}
                 nota={nota}
                 setNota={setNota}
+                fechaEntrega={fechaEntrega}
+                setFechaEntrega={setFechaEntrega}
               />
             )}
           </motion.div>
@@ -565,6 +577,10 @@ export default function ArmadoPedidoPage() {
           ) : (
             <Button
               onClick={() => setConfirmarOpen(true)}
+              disabled={!puedeConfirmar}
+              title={
+                puedeConfirmar ? undefined : "Falta la fecha de entrega comprometida."
+              }
               aria-label="Confirmar pedido, abrir diálogo de doble confirmación"
               className="gap-1.5 text-[13px]"
             >
@@ -1856,6 +1872,8 @@ function PasoConfirmar({
   total,
   nota,
   setNota,
+  fechaEntrega,
+  setFechaEntrega,
 }: {
   cliente: Cliente;
   direccionId: string;
@@ -1867,8 +1885,12 @@ function PasoConfirmar({
   total: number;
   nota: string;
   setNota: (v: string) => void;
+  fechaEntrega: string;
+  setFechaEntrega: (v: string) => void;
 }) {
   const direccion = cliente.direccionesEntrega.find((d) => d.id === direccionId);
+  // No se puede comprometer una entrega para ayer.
+  const hoyISO = new Date().toISOString().slice(0, 10);
 
   return (
     <div className="max-w-2xl mx-auto px-6 py-10">
@@ -1898,6 +1920,27 @@ function PasoConfirmar({
             </span>
           </div>
         )}
+      </div>
+
+      {/* Fecha de entrega comprometida (RF-17) */}
+      <div className="mt-3 rounded-lg border border-border bg-surface shadow-card p-4">
+        <Label
+          htmlFor="fecha-entrega"
+          className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium"
+        >
+          Fecha de entrega comprometida
+        </Label>
+        <Input
+          id="fecha-entrega"
+          type="date"
+          min={hoyISO}
+          value={fechaEntrega}
+          onChange={(e) => setFechaEntrega(e.target.value)}
+          className="mt-2 w-44 tabular"
+        />
+        <p className="mt-1 text-[10px] text-muted-foreground">
+          Referencia para medir el saldo. Requerida para confirmar.
+        </p>
       </div>
 
       {/* Items */}

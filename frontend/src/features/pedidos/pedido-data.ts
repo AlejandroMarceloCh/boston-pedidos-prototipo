@@ -48,6 +48,13 @@ export type PedidoDetalle = {
   total: number;
   tieneSaldo: boolean;
   saldoUnidades?: number;
+  /**
+   * RF-17: fecha de entrega comprometida (ISO `YYYY-MM-DD`). Sin ella no se
+   * puede saber si un saldo es responsabilidad de Boston: es la referencia
+   * contra la que se mide el incumplimiento (habilita RF-45).
+   * Opcional en un borrador; obligatoria para confirmar.
+   */
+  fechaEntrega?: string;
   eventos: PedidoEvento[];
   // Lo que el asistente necesita para poder retomar un borrador tal como quedó.
   direccionId?: string;
