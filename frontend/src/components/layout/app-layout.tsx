@@ -5,6 +5,7 @@ import {
   Users,
   PackageSearch,
   ClipboardList,
+  BarChart3,
   Search,
   ShoppingCart,
   ChevronRight,
@@ -40,6 +41,7 @@ const NAV = [
   { to: "/clientes", label: "Clientes", icon: Users },
   { to: "/catalogo", label: "Catálogo", icon: PackageSearch },
   { to: "/pedidos", label: "Pedidos", icon: ClipboardList },
+  { to: "/informes", label: "Informes", icon: BarChart3 },
 ];
 
 export function AppLayout() {

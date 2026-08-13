@@ -169,6 +169,94 @@ export function saldoAlConfirmar(
   }, 0);
 }
 
+// ===== RF-24 · Demanda no atendida =====
+
+export type DemandaSku = {
+  sku: string;
+  descripcion: string;
+  articulo: string;
+  talla: string;
+  color: string;
+  /** Unidades pedidas que no se pudieron atender. */
+  unidades: number;
+  /** En cuántas solicitudes distintas aparece. */
+  solicitudes: number;
+  /** Clientes distintos que lo pidieron. */
+  clientes: string[];
+  /** Disponible hoy de ese SKU. */
+  disponible: number;
+  /** Valorizado a precio de lista. */
+  monto: number;
+};
+
+/**
+ * Lo que los clientes pidieron y no se pudo vender, agregado por SKU.
+ *
+ * Es la razón de ser del split (RF-20): antes esta demanda no se registraba en
+ * ninguna parte —el sistema impedía pedirla— y por eso no llegaba a producción.
+ *   *"queremos cambiar la lógica de la toma de pedidos (…) tiene que ver con
+ *   temas de producción"*
+ *
+ * Solo cuenta solicitudes pendientes o aprobadas: una rechazada es demanda que
+ * la empresa decidió no atender, y no debería empujar producción.
+ */
+export function demandaNoAtendida(state: AppState): DemandaSku[] {
+  const reservas = reservasPorSku(state);
+  const porSku = new Map<string, DemandaSku>();
+
+  for (const p of Object.values(state.pedidos)) {
+    if (!esSolicitud(p)) continue;
+    if (p.estadoSolicitud === "rechazada") continue;
+
+    for (const item of p.items) {
+      const sku = SKUS.find((x) => x.codigo === item.sku);
+      const previo = porSku.get(item.sku);
+      if (previo) {
+        previo.unidades += item.cantidad;
+        previo.solicitudes += 1;
+        previo.monto += item.cantidad * item.precio;
+        if (!previo.clientes.includes(p.cliente)) previo.clientes.push(p.cliente);
+      } else {
+        porSku.set(item.sku, {
+          sku: item.sku,
+          descripcion: item.descripcion,
+          articulo: item.articulo ?? sku?.articulo ?? "",
+          talla: item.talla ?? sku?.talla ?? "",
+          color: item.color ?? sku?.color ?? "",
+          unidades: item.cantidad,
+          solicitudes: 1,
+          clientes: [p.cliente],
+          disponible: disponibleDe(item.sku, reservas),
+          monto: item.cantidad * item.precio,
+        });
+      }
+    }
+  }
+
+  return [...porSku.values()].sort((a, b) => b.unidades - a.unidades);
+}
+
+/** La misma demanda agrupada por artículo, que es como se produce. */
+export function demandaPorArticulo(state: AppState) {
+  const porArt = new Map<string, { articulo: string; unidades: number; monto: number; skus: number }>();
+  for (const d of demandaNoAtendida(state)) {
+    const previo = porArt.get(d.articulo);
+    if (previo) {
+      previo.unidades += d.unidades;
+      previo.monto += d.monto;
+      previo.skus += 1;
+    } else {
+      porArt.set(d.articulo, {
+        articulo: d.articulo,
+        unidades: d.unidades,
+        monto: d.monto,
+        skus: 1,
+      });
+    }
+  }
+  return [...porArt.values()].sort((a, b) => b.unidades - a.unidades);
+}
+
 // ===== KPIs del dashboard =====
 
 export type Kpis = {

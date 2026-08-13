@@ -7,6 +7,7 @@ import ClientesPage from "@/pages/clientes";
 import CatalogoPage from "@/pages/catalogo";
 import ArmadoPedidoPage from "@/pages/armado-pedido";
 import MisPedidosPage from "@/pages/mis-pedidos";
+import InformesPage from "@/pages/informes";
 
 /**
  * Sin sesión abierta no se entra a las pantallas internas. Sin backend esto no
@@ -41,6 +42,7 @@ export default function App() {
         {/* Retomar un borrador existente: el asistente se hidrata desde el store. */}
         <Route path="/pedidos/:nro/editar" element={<ArmadoPedidoPage />} />
         <Route path="/pedidos" element={<MisPedidosPage />} />
+        <Route path="/informes" element={<InformesPage />} />
       </Route>
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
