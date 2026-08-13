@@ -230,7 +230,7 @@ export function AppLayout() {
           className="md:hidden fixed bottom-0 inset-x-0 z-30 border-t border-border bg-surface/95 backdrop-blur-md"
           style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
         >
-          <ul className="grid grid-cols-5 h-14">
+          <ul className="grid grid-cols-6 h-14">
             {NAV.map((item) => (
               <li key={item.to}>
                 <NavLink

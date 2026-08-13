@@ -91,7 +91,18 @@ export type Action =
     }
   | { type: "solicitud/atender"; nro: string; fecha: string; nroPedido: string }
   | { type: "pedido/facturar"; nro: string; fecha: string; facturas: string[] }
-  | { type: "pedido/entregar"; nro: string; fecha: string; guias: string[] }
+  | {
+      type: "pedido/entregar";
+      nro: string;
+      fecha: string;
+      guias: string[];
+      /**
+       * RF-45: unidades realmente despachadas por SKU. Si falta alguna, el
+       * pedido queda con saldo. Sin esto, entregar despachaba siempre todo y
+       * el saldo solo existía en los datos semilla.
+       */
+      despachado?: Record<string, number>;
+    }
   | {
       type: "pedido/anular";
       nro: string;
@@ -395,11 +406,33 @@ export function reducer(state: AppState, action: Action): AppState {
         guia: par.guia ?? action.guias[i],
       }));
 
+      // Lo que no se despachó queda como saldo, con su causa (RF-45).
+      const despachado = action.despachado;
+      // Un SKU no mencionado se considera entregado completo: así un dato
+      // incompleto no inventa un saldo que nadie registró.
+      const faltante = despachado
+        ? p.items.reduce((a, i) => {
+            const total = i.atendible ?? i.cantidad;
+            const entregado = despachado[i.sku] ?? total;
+            return a + Math.max(0, total - entregado);
+          }, 0)
+        : 0;
+
       let actualizado: PedidoDetalle = {
         ...p,
         estado: "entregado",
         partidas: partidasConGuia.length ? partidasConGuia : undefined,
+        tieneSaldo: faltante > 0 || p.tieneSaldo,
+        saldoUnidades: faltante > 0 ? faltante : p.saldoUnidades,
+        causaSaldo: faltante > 0 ? p.causaSaldo ?? "boston" : p.causaSaldo,
       };
+      if (faltante > 0) {
+        actualizado = conEvento(actualizado, {
+          fecha: action.fecha,
+          tipo: "observacion",
+          detalle: `Entrega parcial · ${faltante} und quedan en saldo`,
+        });
+      }
       action.guias.forEach((guia, i) => {
         const par = partidasConGuia[i];
         actualizado = conEvento(actualizado, {
@@ -523,7 +556,8 @@ type StoreValue = {
   /** Convierte una solicitud aprobada en un pedido confirmado. Devuelve su nro. */
   atenderSolicitud: (nro: string) => string;
   facturarPedido: (nro: string) => void;
-  entregarPedido: (nro: string) => void;
+  /** `despachado` opcional: unidades realmente entregadas por SKU (RF-45). */
+  entregarPedido: (nro: string, despachado?: Record<string, number>) => void;
   anularPedido: (nro: string, motivo?: string) => void;
   /** RF-45: reclasificar de quién es la culpa del saldo. */
   setCausaSaldo: (nro: string, causa: CausaSaldo) => void;
@@ -660,7 +694,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         );
         dispatch({ type: "pedido/facturar", nro, fecha: ahoraTexto(), facturas });
       },
-      entregarPedido: (nro) => {
+      entregarPedido: (nro, despachado) => {
         const p = state.pedidos[nro];
         const cuantas = Math.max(1, p?.partidas?.length ?? 1);
         const base = parseInt(siguienteGuia(state).split("-")[1], 10);
@@ -668,7 +702,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
           { length: cuantas },
           (_, i) => `T001-${String(base + i).padStart(5, "0")}`
         );
-        dispatch({ type: "pedido/entregar", nro, fecha: ahoraTexto(), guias });
+        dispatch({ type: "pedido/entregar", nro, fecha: ahoraTexto(), guias, despachado });
       },
       anularPedido: (nro, motivo) => {
         const p = state.pedidos[nro];

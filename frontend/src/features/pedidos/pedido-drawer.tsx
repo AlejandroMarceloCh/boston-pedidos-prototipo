@@ -32,6 +32,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { usePedidos } from "@/store/hooks";
 import { useStore } from "@/store/app-store";
 import {
@@ -89,6 +95,8 @@ export function PedidoDrawer({
 }) {
   const navigate = useNavigate();
   const [confirmarAnular, setConfirmarAnular] = useState(false);
+  const [entregaParcial, setEntregaParcial] = useState(false);
+  const [parcial, setParcial] = useState<Record<string, number>>({});
   const { pedido: buscarPedido } = usePedidos();
   const {
     anularPedido,
@@ -125,6 +133,28 @@ export function PedidoDrawer({
     if (!pedido) return;
     entregarPedido(pedido.nro);
     toast.success(`Pedido ${pedido.nro} marcado como entregado`);
+  };
+
+  /**
+   * RF-45 · Entrega parcial. Lo que no se despacha queda como saldo, que es
+   * la mitad del concepto: *"el famoso saldo: lo que no atendiste"*. Sin esto
+   * el saldo solo existía en los pedidos de ejemplo.
+   */
+  const confirmarEntregaParcial = () => {
+    if (!pedido) return;
+    const despachado: Record<string, number> = {};
+    for (const it of pedido.items) {
+      despachado[it.sku] = parcial[it.sku] ?? it.atendible ?? it.cantidad;
+    }
+    entregarPedido(pedido.nro, despachado);
+    setEntregaParcial(false);
+    const faltan = pedido.items.reduce(
+      (a, i) => a + Math.max(0, (i.atendible ?? i.cantidad) - (despachado[i.sku] ?? 0)),
+      0
+    );
+    toast.success(`Pedido ${pedido.nro} entregado`, {
+      description: faltan > 0 ? `${faltan} unidades quedan en saldo.` : undefined,
+    });
   };
 
   const duplicar = () => {
@@ -526,10 +556,21 @@ export function PedidoDrawer({
                   </>
                 )}
                 {!esSolicitud(pedido) && pedido.estado === "facturado" && (
-                  <Button size="sm" onClick={entregar} className="gap-1.5">
-                    <Truck className="h-3.5 w-3.5" />
-                    Marcar como entregado
-                  </Button>
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEntregaParcial(true)}
+                      className="gap-1.5"
+                    >
+                      <Truck className="h-3.5 w-3.5" />
+                      Entrega parcial
+                    </Button>
+                    <Button size="sm" onClick={entregar} className="gap-1.5">
+                      <Truck className="h-3.5 w-3.5" />
+                      Entregar todo
+                    </Button>
+                  </>
                 )}
                 {!esSolicitud(pedido) && pedido.estado === "borrador" && (
                   <Button
@@ -622,6 +663,62 @@ export function PedidoDrawer({
           )}
         </DrawerContent>
       </Drawer>
+
+      <Dialog open={entregaParcial} onOpenChange={setEntregaParcial}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-[15px]">Entrega parcial</DialogTitle>
+          </DialogHeader>
+          <div className="px-6 pb-6">
+            <p className="text-[12.5px] text-muted-foreground mb-4">
+              Indica cuántas unidades se despacharon de cada item. Lo que falte
+              queda registrado como saldo.
+            </p>
+            <div className="space-y-2.5">
+              {pedido?.items.map((it) => {
+                const tope = it.atendible ?? it.cantidad;
+                return (
+                  <div key={it.sku} className="flex items-center gap-3">
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[12.5px] truncate">{it.descripcion}</span>
+                      <span className="block font-mono text-[10.5px] text-muted-foreground">
+                        {it.sku}
+                      </span>
+                    </span>
+                    <input
+                      value={parcial[it.sku] ?? tope}
+                      inputMode="numeric"
+                      aria-label={`Unidades despachadas de ${it.sku}`}
+                      onChange={(e) =>
+                        setParcial((p) => ({
+                          ...p,
+                          [it.sku]: Math.max(
+                            0,
+                            Math.min(
+                              tope,
+                              parseInt(e.target.value.replace(/[^\d]/g, "") || "0", 10)
+                            )
+                          ),
+                        }))
+                      }
+                      className="tabular w-20 h-9 text-center text-[13px] rounded-md border border-border bg-surface shadow-sunken focus:outline-none focus:ring-2 focus:ring-ring"
+                    />
+                    <span className="tabular text-[11px] text-muted-foreground w-14">
+                      de {tope}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex justify-end gap-2 mt-5">
+              <Button variant="ghost" onClick={() => setEntregaParcial(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={confirmarEntregaParcial}>Registrar entrega</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDialog
         open={confirmarAnular}

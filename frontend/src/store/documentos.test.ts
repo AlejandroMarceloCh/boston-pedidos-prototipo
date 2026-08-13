@@ -159,3 +159,52 @@ describe("dinero exacto", () => {
     expect(suma).toBe(t.subtotal);
   });
 });
+
+describe("RF-45 · el saldo existe para pedidos nuevos", () => {
+  it("entregar de menos deja saldo con su causa", () => {
+    let s = base();
+    const p = Object.values(s.pedidos).find((x) => x.items.length >= 1)!;
+    s = reducer(s, {
+      type: "pedido/upsert",
+      pedido: { ...p, estado: "facturado", tieneSaldo: false, saldoUnidades: undefined },
+    });
+    const sku = p.items[0].sku;
+    const pedido = p.items[0].atendible ?? p.items[0].cantidad;
+
+    s = reducer(s, {
+      type: "pedido/entregar",
+      nro: p.nro,
+      fecha: "2027-03-16 10:00",
+      guias: ["T001-00841"],
+      despachado: { [sku]: pedido - 12 },
+    });
+
+    const e = s.pedidos[p.nro];
+    expect(e.estado).toBe("entregado");
+    expect(e.tieneSaldo).toBe(true);
+    expect(e.saldoUnidades).toBe(12);
+    // Entregar de menos es incumplimiento de Boston, no falta de insumo.
+    expect(e.causaSaldo).toBe("boston");
+    expect(e.eventos.some((ev) => ev.detalle.includes("Entrega parcial"))).toBe(true);
+  });
+
+  it("entregar todo no genera saldo", () => {
+    let s = base();
+    const p = Object.values(s.pedidos).find((x) => x.items.length >= 1)!;
+    s = reducer(s, {
+      type: "pedido/upsert",
+      pedido: { ...p, estado: "facturado", tieneSaldo: false, saldoUnidades: undefined },
+    });
+    const despachado = Object.fromEntries(
+      p.items.map((i) => [i.sku, i.atendible ?? i.cantidad])
+    );
+    s = reducer(s, {
+      type: "pedido/entregar",
+      nro: p.nro,
+      fecha: "2027-03-16 10:00",
+      guias: ["T001-00841"],
+      despachado,
+    });
+    expect(s.pedidos[p.nro].tieneSaldo).toBe(false);
+  });
+});
