@@ -11,6 +11,21 @@ import { readFileSync } from "node:fs";
 
 const wizard = readFileSync("src/pages/armado-pedido.tsx", "utf-8");
 
+const matriz = readFileSync("src/features/pedidos/matriz-carga.tsx", "utf-8");
+
+describe("RF-15 · la matriz es usable en celular", () => {
+  it("hay una vista por color para pantallas chicas", () => {
+    // Una tabla de 8 tallas pide ~900px: en celular obligaba a desplazarse
+    // en dos ejes a la vez.
+    expect(matriz).toContain("sm:hidden");
+    expect(matriz).toContain("hidden sm:block overflow-x-auto");
+  });
+
+  it("el aviso de atajos de teclado no se muestra en celular", () => {
+    expect(matriz).toContain('className="hidden sm:flex items-center gap-2 px-4 py-3');
+  });
+});
+
 describe("RF-15 · el paso de items no puede ser un callejón sin salida", () => {
   it("el footer ofrece Continuar en el paso 1 por debajo de lg", () => {
     // Antes había un espaciador vacío: <span className="w-[104px]" />

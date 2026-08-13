@@ -63,9 +63,112 @@ export function MatrizCarga({ art, skus, cants, setCants, enPedido = {} }: Matri
     destino.select();
   };
 
+  /** Celda de carga, compartida por la tabla y la lista móvil. */
+  const celda = (cc: string, talla: string, ci: number, ti: number) => {
+    const sku = skus.find((s) => s.talla === talla && s.color === cc);
+    if (!sku) return null;
+    const avail = disponible(sku.codigo);
+    const sinStock = avail <= 0;
+    const maxDoc = Math.floor(avail / 12);
+    const doc = cants[sku.codigo] ?? 0;
+    const yaEnPedido = enPedido[sku.codigo] ?? 0;
+    const escaso = !sinStock && avail < UMBRAL_ESCASO;
+    const color = COLORS[cc];
+    return { sku, avail, sinStock, maxDoc, doc, yaEnPedido, escaso, color, ci, ti };
+  };
+
   return (
     <div>
-      <div className="overflow-x-auto">
+      {/* ===== Móvil: una tarjeta por color =====
+          Una tabla de 8 tallas necesita ~900px y en celular obligaba a
+          desplazarse en dos ejes a la vez. Acá cada color se carga aparte. */}
+      <div className="sm:hidden space-y-3 py-2">
+        {art.colores.map((cc, ci) => {
+          const color = COLORS[cc];
+          const docColor = art.tallas.reduce(
+            (a, t) => a + (cants[skus.find((s) => s.talla === t && s.color === cc)?.codigo ?? ""] ?? 0),
+            0
+          );
+          return (
+            <div key={cc} className="rounded-xl border border-border bg-surface shadow-card overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+                <span
+                  className="h-6 w-6 rounded-full border border-black/10 shrink-0 shadow-subtle"
+                  style={{ backgroundColor: color.hex }}
+                  aria-hidden="true"
+                />
+                <span className="flex-1 min-w-0">
+                  <span className="block text-[13.5px] font-semibold">{color.name}</span>
+                  <span className="block font-mono text-[10px] text-muted-foreground">{cc}</span>
+                </span>
+                {docColor > 0 && (
+                  <span className="tabular text-[12px] font-semibold text-primary">
+                    {docColor} doc
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-2 p-3">
+                {art.tallas.map((talla, ti) => {
+                  const c = celda(cc, talla, ci, ti);
+                  if (!c) return null;
+                  return (
+                    <div key={talla}>
+                      <div className="flex items-baseline justify-between mb-1">
+                        <span className="tabular text-[12px] font-medium">{talla}</span>
+                        <span
+                          className={cn(
+                            "tabular text-[10px]",
+                            c.sinStock
+                              ? "text-muted-foreground/50"
+                              : c.escaso
+                                ? "text-warning"
+                                : "text-muted-foreground"
+                          )}
+                        >
+                          {c.sinStock ? "—" : c.avail}
+                        </span>
+                      </div>
+                      <input
+                        value={c.doc || ""}
+                        placeholder="—"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        aria-label={`Docenas de ${color.name} talla ${talla}. ${c.avail} unidades disponibles`}
+                        onChange={(e) =>
+                          setCants((p) => ({
+                            ...p,
+                            [c.sku.codigo]: Math.max(
+                              0,
+                              parseInt(e.target.value.replace(/[^\d]/g, "") || "0", 10)
+                            ),
+                          }))
+                        }
+                        className={cn(
+                          "tabular w-full h-11 text-center text-[15px] rounded-lg border transition-colors",
+                          "focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary",
+                          c.doc > c.maxDoc
+                            ? "border-warning bg-warning/[0.07] text-warning font-semibold"
+                            : c.doc > 0
+                              ? "border-primary bg-primary/[0.07] text-primary font-semibold"
+                              : "border-border bg-surface placeholder:text-muted-foreground/40"
+                        )}
+                      />
+                      {c.doc > c.maxDoc && (
+                        <p className="mt-1 text-[9.5px] text-warning tabular text-center">
+                          +{c.doc - c.maxDoc}d a solicitud
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ===== Tablet y escritorio: la matriz completa ===== */}
+      <div className="hidden sm:block overflow-x-auto">
         <table className="w-full border-collapse">
           <thead>
             <tr className="border-b border-border">
@@ -211,7 +314,7 @@ export function MatrizCarga({ art, skus, cants, setCants, enPedido = {} }: Matri
         </table>
       </div>
 
-      <p className="flex items-center gap-2 px-4 py-3 text-[12px] text-muted-foreground">
+      <p className="hidden sm:flex items-center gap-2 px-4 py-3 text-[12px] text-muted-foreground">
         <Keyboard className="h-4 w-4 shrink-0" aria-hidden="true" />
         Ingresa docenas
         <span className="text-muted-foreground/50">·</span>
