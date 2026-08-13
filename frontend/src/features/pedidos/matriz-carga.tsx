@@ -239,7 +239,7 @@ export function ResumenSeleccion({
   }, 0);
 
   return (
-    <aside className="flex flex-col gap-5 p-6 bg-background border-l border-border">
+    <aside className="flex flex-col gap-5 p-6 bg-background border-t md:border-t-0 md:border-l border-border">
       <div>
         <h3 className="text-[15px] font-semibold tracking-tight">Selección</h3>
         <ul className="mt-3 space-y-1.5 text-[13px] text-muted-foreground">

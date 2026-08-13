@@ -434,7 +434,10 @@ export default function ArmadoPedidoPage() {
             transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
             // En el paso de items scrollea solo la columna de la izquierda,
             // así el resumen de la derecha queda siempre a la vista.
-            className={cn("h-full", paso === 1 ? "overflow-hidden" : "overflow-auto")}
+            className={cn(
+              "h-full",
+              paso === 1 ? "overflow-auto lg:overflow-hidden" : "overflow-auto"
+            )}
           >
             {paso === 0 && (
               <PasoCliente
@@ -545,12 +548,12 @@ export default function ArmadoPedidoPage() {
 
           <div className="flex items-center gap-3 text-[12px] text-muted-foreground" aria-live="polite">
             <span className="tabular">Paso {paso + 1} de {PASOS.length}</span>
-            {lineas.length > 0 && paso !== 1 && (
+            {lineas.length > 0 && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={guardarYSalir}
-                className="gap-1.5 text-[12px]"
+                className={cn("gap-1.5 text-[12px]", paso === 1 && "lg:hidden")}
                 title="Guardar como borrador y seguir después"
               >
                 <Package className="h-3.5 w-3.5" aria-hidden="true" />
@@ -560,8 +563,18 @@ export default function ArmadoPedidoPage() {
           </div>
 
           {paso === 1 ? (
-            // En el paso de items, Continuar vive en el panel de resumen.
-            <span className="w-[104px]" aria-hidden="true" />
+            // En pantallas grandes Continuar vive en el panel lateral; por
+            // debajo de lg ese panel no se renderiza, así que el footer tiene
+            // que ofrecerlo o el asistente queda sin salida en celular y tablet.
+            <Button
+              onClick={avanzar}
+              disabled={!puedeAvanzar}
+              aria-label={`Continuar al paso ${paso + 2}: ${PASOS[paso + 1]}`}
+              className="gap-1.5 text-[13px] lg:hidden"
+            >
+              Continuar
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Button>
           ) : paso < 3 ? (
             <Button
               onClick={avanzar}
@@ -909,9 +922,9 @@ function PasoItems({
   const subtotal = lineas.reduce((a, l) => a + l.cantidad * l.precio, 0);
 
   return (
-    <div className="grid lg:grid-cols-[1fr_320px] h-full">
+    <div className="grid lg:grid-cols-[1fr_320px] lg:h-full">
       {/* ===== Columna principal ===== */}
-      <div className="overflow-auto px-7 lg:px-10 py-8">
+      <div className="lg:overflow-auto px-5 sm:px-7 lg:px-10 py-8">
         <div className="max-w-3xl">
           <div className="flex items-start justify-between gap-4">
             <div>
@@ -1226,7 +1239,7 @@ function PasoItems({
       </div>
 
       {/* ===== Resumen ===== */}
-      <aside className="hidden lg:flex flex-col gap-5 p-7 bg-background border-l border-border">
+      <aside className="flex flex-col gap-5 p-7 bg-background border-t lg:border-t-0 lg:border-l border-border">
         <div>
           <h3 className="text-[16px] font-semibold tracking-tight">Resumen</h3>
           <p className="mt-1.5 text-[12.5px] text-muted-foreground">
@@ -1259,7 +1272,9 @@ function PasoItems({
           </div>
         </div>
 
-        <div className="flex flex-col gap-3">
+        {/* Por debajo de lg estas acciones las ofrece el footer del asistente,
+            para no mostrarlas dos veces. */}
+        <div className="hidden lg:flex flex-col gap-3">
           <Button
             onClick={onContinuar}
             disabled={lineas.length === 0}
@@ -1531,8 +1546,8 @@ function CatalogoDrawer({
         ) : (
           /* Matriz a la izquierda, resumen de la selección a la derecha: la
              acción principal queda junto al número que la justifica. */
-          <div className="grid md:grid-cols-[1fr_260px] max-h-[70vh] overflow-hidden">
-            <div className="overflow-auto px-7 pb-2">
+          <div className="grid md:grid-cols-[1fr_260px] max-h-[70vh] overflow-auto md:overflow-hidden">
+            <div className="md:overflow-auto px-5 sm:px-7 pb-2">
               <MatrizCarga
                 art={art!}
                 skus={skus}

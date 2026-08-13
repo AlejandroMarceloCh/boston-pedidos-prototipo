@@ -382,8 +382,8 @@ function CuadriculaDialog({
             </DrawerHeader>
 
             {/* Mismo layout que el asistente: matriz y resumen lado a lado. */}
-            <div className="grid md:grid-cols-[1fr_260px] overflow-hidden flex-1">
-              <div className="overflow-auto px-7 pb-2">
+            <div className="grid md:grid-cols-[1fr_260px] overflow-auto md:overflow-hidden flex-1">
+              <div className="md:overflow-auto px-5 sm:px-7 pb-2">
                 <MatrizCarga
                   art={articulo}
                   skus={skus}
