@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Clock,
   Copy,
+  Check,
 } from "lucide-react";
 import {
   Drawer,
@@ -35,6 +36,8 @@ import { usePedidos } from "@/store/hooks";
 import { useStore } from "@/store/app-store";
 import {
   CAUSA_SALDO_LABEL,
+  ESTADO_SOLICITUD_LABEL,
+  esSolicitud,
   saldoVencido,
   type CausaSaldo,
   type EstadoPedido,
@@ -81,8 +84,14 @@ export function PedidoDrawer({
   const navigate = useNavigate();
   const [confirmarAnular, setConfirmarAnular] = useState(false);
   const { pedido: buscarPedido } = usePedidos();
-  const { anularPedido, facturarPedido, entregarPedido, duplicarPedido, setCausaSaldo } =
-    useStore();
+  const {
+    anularPedido,
+    facturarPedido,
+    entregarPedido,
+    duplicarPedido,
+    setCausaSaldo,
+    resolverSolicitud,
+  } = useStore();
   const pedido = buscarPedido(pedidoId) ?? null;
   const vencido = pedido ? saldoVencido(pedido) : false;
 
@@ -149,9 +158,16 @@ export function PedidoDrawer({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="tabular text-[13px] font-medium">{pedido.nro}</span>
-                    <Badge variant={estadoConfig[pedido.estado].variant}>
-                      {estadoConfig[pedido.estado].label}
-                    </Badge>
+                    {esSolicitud(pedido) ? (
+                      <Badge variant={pedido.estadoSolicitud === "rechazada" ? "destructive" : "warning"}>
+                        Solicitud ·{" "}
+                        {ESTADO_SOLICITUD_LABEL[pedido.estadoSolicitud ?? "pendiente"]}
+                      </Badge>
+                    ) : (
+                      <Badge variant={estadoConfig[pedido.estado].variant}>
+                        {estadoConfig[pedido.estado].label}
+                      </Badge>
+                    )}
                     {pedido.tieneSaldo && (
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -323,7 +339,7 @@ export function PedidoDrawer({
 
               <DrawerFooter>
                 {/* Acciones contextuales según estado */}
-                {pedido.estado === "confirmado" && (
+                {!esSolicitud(pedido) && pedido.estado === "confirmado" && (
                   <>
                     <Button variant="outline" size="sm" onClick={reenviar} className="gap-1.5">
                       <Send className="h-3.5 w-3.5" />
@@ -344,13 +360,13 @@ export function PedidoDrawer({
                     </Button>
                   </>
                 )}
-                {pedido.estado === "facturado" && (
+                {!esSolicitud(pedido) && pedido.estado === "facturado" && (
                   <Button size="sm" onClick={entregar} className="gap-1.5">
                     <Truck className="h-3.5 w-3.5" />
                     Marcar como entregado
                   </Button>
                 )}
-                {pedido.estado === "borrador" && (
+                {!esSolicitud(pedido) && pedido.estado === "borrador" && (
                   <Button
                     size="sm"
                     onClick={() => {
@@ -363,9 +379,41 @@ export function PedidoDrawer({
                     Continuar editando
                   </Button>
                 )}
+                {/* RF-21: una solicitud se aprueba o se rechaza. No se factura
+                    ni se entrega: primero tiene que haber stock. */}
+                {esSolicitud(pedido) && pedido.estadoSolicitud === "pendiente" && (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        resolverSolicitud(pedido.nro, "rechazada", "No se puede atender");
+                        toast(`Solicitud ${pedido.nro} rechazada`);
+                      }}
+                      className="text-destructive hover:text-destructive hover:bg-destructive/5 gap-1.5"
+                    >
+                      <Ban className="h-3.5 w-3.5" />
+                      Rechazar
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => {
+                        resolverSolicitud(pedido.nro, "aprobada");
+                        toast.success(`Solicitud ${pedido.nro} aprobada`, {
+                          description: "Queda a la espera de reposición.",
+                        });
+                      }}
+                      className="gap-1.5"
+                    >
+                      <Check className="h-3.5 w-3.5" />
+                      Aprobar
+                    </Button>
+                  </>
+                )}
+
                 {/* Entregado y anulado no tienen transición posible: la única
                     acción útil es volver a pedir lo mismo. */}
-                {(pedido.estado === "entregado" || pedido.estado === "anulado") && (
+                {!esSolicitud(pedido) && (pedido.estado === "entregado" || pedido.estado === "anulado") && (
                   <Button variant="outline" size="sm" onClick={duplicar} className="gap-1.5">
                     <Copy className="h-3.5 w-3.5" />
                     Duplicar pedido

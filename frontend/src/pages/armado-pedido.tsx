@@ -322,20 +322,19 @@ export default function ArmadoPedidoPage() {
   const confirmarPedido = () => {
     confirmando.current = true;
     const n = persistir();
-    // Unidades que el stock disponible no alcanza a cubrir: el pedido se
-    // confirma igual, pero queda marcado con saldo pendiente.
-    const saldo = lineas.reduce(
-      (acc, l) => acc + Math.max(0, l.cantidad - disponible(l.sku)),
-      0
-    );
-    confirmarEnStore(n, saldo);
+    // RF-20: el store reparte contra el stock del momento. Lo atendible queda
+    // en el pedido; lo que el cliente quiere y no hay nace como solicitud.
+    const nroSolicitud = confirmarEnStore(n);
     setBorradorActivo(null);
-    const solicitado = totalUnidades + saldo;
-    toast.success(`Pedido ${n} confirmado`, {
-      description: saldo
-        ? `${totalUnidades} und con stock de ${solicitado} pedidas · ${saldo} en saldo · ${formatCurrency(total)}.`
-        : `${totalUnidades} und · ${formatCurrency(total)} · Stock reservado 48h.`,
-    });
+    if (nroSolicitud) {
+      toast.success(`Pedido ${n} confirmado y solicitud ${nroSolicitud} registrada`, {
+        description: `${totalUnidades} und con stock · ${totalSaldoUnidades} und quedan como solicitud a la espera de reposición.`,
+      });
+    } else {
+      toast.success(`Pedido ${n} confirmado`, {
+        description: `${totalUnidades} unidades · ${formatCurrency(total)} · Stock reservado 48h.`,
+      });
+    }
     setTimeout(() => navigate("/pedidos"), 600);
   };
 
@@ -825,22 +824,16 @@ function PasoItems({
         onEliminarConUndo(linea, idx);
         return prev.filter((l) => l.sku !== sku);
       }
-      // Tope por stock disponible, igual que en la matriz de carga.
-      const tope = Math.max(disponibleSku(sku), linea.cantidad);
-      return prev.map((l) =>
-        l.sku === sku ? { ...l, cantidad: Math.min(nueva, tope) } : l
-      );
+      // RF-20: sin tope. Lo que exceda el stock se registra y al confirmar
+      // nace como solicitud, en vez de perderse.
+      return prev.map((l) => (l.sku === sku ? { ...l, cantidad: nueva } : l));
     });
 
   const setCantidad = (sku: string, v: string) => {
     const cleaned = v.replace(/[^\d]/g, "");
     const n = parseInt(cleaned || "0", 10);
     if (Number.isNaN(n) || n < 0) return;
-    const linea = lineas.find((l) => l.sku === sku);
-    const tope = Math.max(disponibleSku(sku), linea?.cantidad ?? 0);
-    setLineas((prev) =>
-      prev.map((l) => (l.sku === sku ? { ...l, cantidad: Math.min(n, tope) } : l))
-    );
+    setLineas((prev) => prev.map((l) => (l.sku === sku ? { ...l, cantidad: n } : l)));
   };
 
   // El precio se edita como texto y recién se formatea al salir del campo. Con

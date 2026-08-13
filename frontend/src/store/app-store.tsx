@@ -16,7 +16,14 @@ import {
 import { CURRENT_USER, SKUS, type Cliente } from "@/lib/mock-data";
 import { calcularTotales, r2 } from "@/lib/pedido-calc";
 import { semilla, type AppState } from "./semilla";
-import { siguienteNro, siguienteFactura, ahoraTexto, reservasPorSku, disponibleDe } from "./selectors";
+import {
+  siguienteNro,
+  siguienteFactura,
+  ahoraTexto,
+  reservasPorSku,
+  disponibleDe,
+  nroSolicitudDe,
+} from "./selectors";
 
 const STORAGE_KEY = "boston.pedidos.v1";
 
@@ -47,7 +54,28 @@ export type BorradorInput = {
 
 export type Action =
   | { type: "pedido/upsert"; pedido: PedidoDetalle }
-  | { type: "pedido/confirmar"; nro: string; fecha: string; saldoUnidades: number }
+  | {
+      type: "pedido/confirmar";
+      nro: string;
+      fecha: string;
+      /** Cómo se reparten los ítems entre el pedido y su solicitud hermana. */
+      reparto: { pedido: PedidoItem[]; solicitud: PedidoItem[] };
+      nroSolicitud: string;
+      totales: {
+        subtotal: number;
+        descuentoTotal: number;
+        igv: number;
+        total: number;
+        subtotalSolicitud: number;
+      };
+    }
+  | {
+      type: "solicitud/resolver";
+      nro: string;
+      fecha: string;
+      decision: "aprobada" | "rechazada";
+      motivo?: string;
+    }
   | { type: "pedido/facturar"; nro: string; fecha: string; factura: string }
   | { type: "pedido/entregar"; nro: string; fecha: string }
   | { type: "pedido/anular"; nro: string; fecha: string; motivo?: string }
@@ -74,29 +102,90 @@ export function reducer(state: AppState, action: Action): AppState {
     case "pedido/confirmar": {
       const p = state.pedidos[action.nro];
       if (!p) return state;
-      const conSaldo = action.saldoUnidades > 0;
-      let actualizado = conEvento(
-        { ...p, estado: "confirmado", tieneSaldo: conSaldo, fecha: action.fecha },
+
+      // RF-20: la confirmación parte el requerimiento en dos documentos.
+      // El PEDIDO se queda con lo atendible y lo reserva; el excedente —lo que
+      // el cliente quiere y hoy no hay— nace como SOLICITUD hermana, que no
+      // reserva nada y espera respuesta.
+      const itemsPedido = action.reparto.pedido;
+      const itemsSolicitud = action.reparto.solicitud;
+
+      const pedidoConfirmado = conEvento(
         {
+          ...p,
+          tipo: "pedido" as const,
+          estado: "confirmado" as const,
+          items: itemsPedido,
           fecha: action.fecha,
-          tipo: "confirmado",
-          detalle: "Stock reservado · 48h",
-        }
+          // Con el split ya no se confirma nada por encima del stock, así que
+          // un pedido recién confirmado nunca nace con saldo. El saldo queda
+          // reservado para el incumplimiento de una entrega comprometida.
+          tieneSaldo: false,
+          subtotal: action.totales.subtotal,
+          descuentoTotal: action.totales.descuentoTotal,
+          igv: action.totales.igv,
+          total: action.totales.total,
+          documentoHermano: itemsSolicitud.length > 0 ? action.nroSolicitud : undefined,
+        },
+        { fecha: action.fecha, tipo: "confirmado", detalle: "Stock reservado · 48h" }
       );
-      if (conSaldo) {
-        // RF-45: al confirmar, el saldo siempre nace como "falta de insumo".
-        // En este instante lo único conocido es que no alcanzaba el stock;
-        // que sea responsabilidad de Boston solo se sabe al vencer la fecha.
-        actualizado = conEvento(
-          { ...actualizado, saldoUnidades: action.saldoUnidades, causaSaldo: "insumo" },
-          {
-            fecha: action.fecha,
-            tipo: "observacion",
-            detalle: `Saldo de ${action.saldoUnidades} und por falta de stock`,
-          }
-        );
+
+      const pedidos = { ...state.pedidos, [action.nro]: pedidoConfirmado };
+
+      if (itemsSolicitud.length > 0) {
+        const unidades = itemsSolicitud.reduce((a, i) => a + i.cantidad, 0);
+        pedidos[action.nroSolicitud] = {
+          ...p,
+          nro: action.nroSolicitud,
+          tipo: "solicitud",
+          estadoSolicitud: "pendiente",
+          documentoHermano: action.nro,
+          estado: "borrador",
+          items: itemsSolicitud,
+          fecha: action.fecha,
+          tieneSaldo: false,
+          saldoUnidades: undefined,
+          causaSaldo: undefined,
+          factura: undefined,
+          // Una solicitud no tiene importe comprometido: el precio se pacta
+          // cuando se aprueba y se sabe cuándo se puede atender.
+          subtotal: action.totales.subtotalSolicitud,
+          descuentoTotal: 0,
+          igv: 0,
+          total: 0,
+          eventos: [
+            {
+              fecha: action.fecha,
+              tipo: "creado",
+              detalle: `Solicitud de ${unidades} und sin stock · nace del pedido ${action.nro}`,
+            },
+          ],
+        };
       }
-      return { ...state, pedidos: { ...state.pedidos, [action.nro]: actualizado } };
+
+      return { ...state, pedidos };
+    }
+
+    case "solicitud/resolver": {
+      const p = state.pedidos[action.nro];
+      if (!p) return state;
+      const aprobada = action.decision === "aprobada";
+      return {
+        ...state,
+        pedidos: {
+          ...state.pedidos,
+          [action.nro]: conEvento(
+            { ...p, estadoSolicitud: action.decision },
+            {
+              fecha: action.fecha,
+              tipo: aprobada ? "confirmado" : "anulado",
+              detalle: aprobada
+                ? `Solicitud aprobada${action.motivo ? ` · ${action.motivo}` : ""}`
+                : `Solicitud rechazada${action.motivo ? ` · ${action.motivo}` : ""}`,
+            }
+          ),
+        },
+      };
     }
 
     case "pedido/facturar": {
@@ -210,7 +299,13 @@ type StoreValue = {
   state: AppState;
   /** Crea o actualiza un borrador. Devuelve el número del pedido. */
   guardarBorrador: (input: BorradorInput) => string;
-  confirmarPedido: (nro: string, saldoUnidades?: number) => void;
+  /** Confirma y parte en pedido + solicitud. Devuelve el nro de la solicitud, o null. */
+  confirmarPedido: (nro: string) => string | null;
+  resolverSolicitud: (
+    nro: string,
+    decision: "aprobada" | "rechazada",
+    motivo?: string
+  ) => void;
   facturarPedido: (nro: string) => void;
   entregarPedido: (nro: string) => void;
   anularPedido: (nro: string, motivo?: string) => void;
@@ -311,8 +406,59 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return {
       state,
       guardarBorrador,
-      confirmarPedido: (nro, saldoUnidades = 0) =>
-        dispatch({ type: "pedido/confirmar", nro, fecha: ahoraTexto(), saldoUnidades }),
+      /**
+       * RF-20. Reparte los ítems contra el stock del momento: lo atendible se
+       * queda en el pedido, el excedente arma la solicitud hermana. Devuelve
+       * el número de la solicitud si nació alguna.
+       */
+      confirmarPedido: (nro) => {
+        const p = state.pedidos[nro];
+        if (!p) return null;
+
+        const reservas = reservasPorSku(state);
+        const itemsPedido: PedidoItem[] = [];
+        const itemsSolicitud: PedidoItem[] = [];
+
+        for (const item of p.items) {
+          const disponible = disponibleDe(item.sku, reservas);
+          const atendible = Math.max(0, Math.min(item.cantidad, disponible));
+          const excedente = item.cantidad - atendible;
+          if (atendible > 0) {
+            itemsPedido.push({ ...item, cantidad: atendible, atendible });
+          }
+          if (excedente > 0) {
+            itemsSolicitud.push({ ...item, cantidad: excedente, atendible: 0 });
+          }
+        }
+
+        const t = calcularTotales(
+          itemsPedido.map((i) => ({ cantidad: i.cantidad, precio: i.precio })),
+          { aplicarInicial: p.aplicarInicial ?? true, slot3: p.slot3 ?? 0 }
+        );
+        const subtotalSolicitud = itemsSolicitud.reduce(
+          (a, i) => a + i.cantidad * i.precio,
+          0
+        );
+
+        const nroSolicitud = nroSolicitudDe(nro);
+        dispatch({
+          type: "pedido/confirmar",
+          nro,
+          fecha: ahoraTexto(),
+          reparto: { pedido: itemsPedido, solicitud: itemsSolicitud },
+          nroSolicitud,
+          totales: {
+            subtotal: r2(t.subtotal),
+            descuentoTotal: r2(t.totalDescuento),
+            igv: r2(t.igv),
+            total: r2(t.total),
+            subtotalSolicitud: r2(subtotalSolicitud),
+          },
+        });
+        return itemsSolicitud.length > 0 ? nroSolicitud : null;
+      },
+      resolverSolicitud: (nro, decision, motivo) =>
+        dispatch({ type: "solicitud/resolver", nro, fecha: ahoraTexto(), decision, motivo }),
       facturarPedido: (nro) =>
         dispatch({
           type: "pedido/facturar",

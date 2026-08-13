@@ -7,6 +7,8 @@ import {
   kpis,
   reservasPorSku,
   resumenes,
+  resumenesPedidos,
+  resumenesSolicitudes,
   saldoAlConfirmar,
 } from "./selectors";
 import type { PedidoDetalle } from "@/features/pedidos/pedido-data";
@@ -16,7 +18,12 @@ export function usePedidos() {
   return useMemo(() => {
     const lista = resumenes(state);
     return {
+      /** Todos los documentos. Para listados que muestran ambos. */
       resumenes: lista,
+      /** Solo compras en firme. */
+      pedidos: resumenesPedidos(state),
+      /** Solo demanda no atendida (RF-20). */
+      solicitudes: resumenesSolicitudes(state),
       borradores: lista.filter((p) => p.estado === "borrador"),
       pedido: (nro: string | null): PedidoDetalle | undefined =>
         nro ? state.pedidos[nro] : undefined,

@@ -131,6 +131,12 @@ export function MatrizCarga({ art, skus, cants, setCants, enPedido = {} }: Matri
                           )}
                         >
                           {sinStock ? "sin stock" : `${avail} disp.`}
+                          {doc > maxDoc && (
+                            <span className="text-warning font-medium">
+                              {" "}
+                              · +{doc - maxDoc}d a solicitud
+                            </span>
+                          )}
                           {yaEnPedido > 0 && (
                             <span className="text-primary font-semibold">
                               {" "}
@@ -144,33 +150,34 @@ export function MatrizCarga({ art, skus, cants, setCants, enPedido = {} }: Matri
                           placeholder="—"
                           inputMode="numeric"
                           pattern="[0-9]*"
-                          aria-label={`Docenas de ${color.name} talla ${talla}. ${avail} unidades disponibles, máximo ${maxDoc} docenas`}
+                          aria-label={`Docenas de ${color.name} talla ${talla}. ${avail} unidades disponibles; lo que exceda se registra como solicitud`}
                           title={
-                            sinStock
-                              ? "Sin stock"
-                              : `${doc} doc = ${doc * 12} und · máx ${maxDoc} doc (${avail} disponibles)`
+                            doc > maxDoc
+                              ? `${doc} doc pedidas · ${maxDoc} con stock, ${doc - maxDoc} irán a solicitud`
+                              : `${doc} doc = ${doc * 12} und · ${maxDoc} doc con stock (${avail} disponibles)`
                           }
                           onKeyDown={(e) => moverFoco(e, ci, ti)}
                           onChange={(e) =>
                             setCants((p) => ({
                               ...p,
+                              // RF-20: se puede pedir más de lo disponible. Lo
+                              // que exceda no se pierde: al confirmar nace como
+                              // solicitud. Topearlo acá era impedirle al
+                              // vendedor registrar la demanda que existe.
                               [sku.codigo]: Math.max(
                                 0,
-                                Math.min(
-                                  maxDoc,
-                                  parseInt(e.target.value.replace(/[^\d]/g, "") || "0", 10)
-                                )
+                                parseInt(e.target.value.replace(/[^\d]/g, "") || "0", 10)
                               ),
                             }))
                           }
-                          disabled={sinStock}
                           className={cn(
                             "tabular w-full h-10 text-center text-[14px] rounded-lg border transition-colors",
                             "focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary",
-                            doc > 0
-                              ? "border-primary bg-primary/[0.07] text-primary font-semibold"
-                              : "border-border bg-surface placeholder:text-muted-foreground/40",
-                            "disabled:cursor-not-allowed disabled:bg-secondary/40 disabled:border-transparent"
+                            doc > maxDoc
+                              ? "border-warning bg-warning/[0.07] text-warning font-semibold"
+                              : doc > 0
+                                ? "border-primary bg-primary/[0.07] text-primary font-semibold"
+                                : "border-border bg-surface placeholder:text-muted-foreground/40"
                           )}
                         />
                       </td>

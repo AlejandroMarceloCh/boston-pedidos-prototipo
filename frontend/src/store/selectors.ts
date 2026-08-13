@@ -2,8 +2,10 @@
 // lo que cada vista necesita, sin guardar nada aparte.
 import {
   ESTADOS_QUE_RESERVAN,
+  esSolicitud,
   type PedidoDetalle,
   type PedidoResumen,
+  type TipoDocumento,
 } from "@/features/pedidos/pedido-data";
 import { SKUS } from "@/lib/mock-data";
 import type { AppState } from "./semilla";
@@ -29,8 +31,20 @@ export function siguienteNro(state: AppState, ahora: Date = new Date()): string 
   )}`;
   const maximo = Object.keys(state.pedidos)
     .filter((nro) => nro.startsWith(prefijo))
+    // Las solicitudes comparten el correlativo de su pedido con el sufijo -S
+    // ("…-014-S"): si entraran acá, `slice(-3)` leería "4-S" y el conteo se
+    // descuadraría. Se numeran a partir del pedido, no por su cuenta.
+    .filter((nro) => !nro.endsWith(SUFIJO_SOLICITUD))
     .reduce((max, nro) => Math.max(max, parseInt(nro.slice(-3), 10) || 0), 0);
   return `${prefijo}-${String(maximo + 1).padStart(3, "0")}`;
+}
+
+/** Sufijo que distingue a una solicitud de su pedido hermano. */
+export const SUFIJO_SOLICITUD = "-S";
+
+/** Número de la solicitud hermana de un pedido: "2026-0813-001" → "…-001-S". */
+export function nroSolicitudDe(nroPedido: string): string {
+  return `${nroPedido}${SUFIJO_SOLICITUD}`;
 }
 
 /** Siguiente correlativo de factura: F001-12391 */
@@ -44,6 +58,10 @@ export function siguienteFactura(state: AppState): string {
 
 // ===== Listados =====
 
+/**
+ * Resúmenes de TODOS los documentos. Cada consumidor decide si quiere pedidos,
+ * solicitudes o ambos: mezclarlos sin filtro descuadraría los contadores.
+ */
 export function resumenes(state: AppState): PedidoResumen[] {
   return Object.values(state.pedidos)
     .map((p) => ({
@@ -54,8 +72,20 @@ export function resumenes(state: AppState): PedidoResumen[] {
       items: p.items.reduce((a, i) => a + i.cantidad, 0),
       total: p.total,
       saldo: p.tieneSaldo,
+      tipo: (p.tipo ?? "pedido") as TipoDocumento,
+      estadoSolicitud: p.estadoSolicitud,
     }))
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
+}
+
+/** Solo compras en firme. Es lo que va a listados de pedidos y a los KPIs. */
+export function resumenesPedidos(state: AppState): PedidoResumen[] {
+  return resumenes(state).filter((p) => p.tipo === "pedido");
+}
+
+/** Solo demanda no atendida. */
+export function resumenesSolicitudes(state: AppState): PedidoResumen[] {
+  return resumenes(state).filter((p) => p.tipo === "solicitud");
 }
 
 // ===== Stock =====
@@ -67,6 +97,9 @@ export function resumenes(state: AppState): PedidoResumen[] {
 export function reservasPorSku(state: AppState): Map<string, number> {
   const mapa = new Map<string, number>();
   for (const p of Object.values(state.pedidos)) {
+    // Una solicitud es demanda registrada, no compromiso: no toca el stock.
+    // Si contara, el excedente se descontaría dos veces (RF-20).
+    if (esSolicitud(p)) continue;
     if (!ESTADOS_QUE_RESERVAN.includes(p.estado)) continue;
     for (const item of p.items) {
       mapa.set(item.sku, (mapa.get(item.sku) ?? 0) + item.cantidad);
@@ -107,11 +140,16 @@ export type Kpis = {
   skusCriticos: number;
   montoPorFacturar: number;
   reservados: number;
+  /** RF-24: demanda registrada que espera respuesta. No es venta. */
+  solicitudesPendientes: number;
 };
 
 export function kpis(state: AppState, reservas: Map<string, number>): Kpis {
   const hoy = ahoraTexto().slice(0, 10);
-  const pedidos = Object.values(state.pedidos);
+  const todos = Object.values(state.pedidos);
+  // RF-24: la proyección de demanda no debe alimentarse de solicitudes, que
+  // son deseo y no compra. *"si el pedido te inflan, te engañas tú solo."*
+  const pedidos = todos.filter((p) => !esSolicitud(p));
 
   const confirmados = pedidos.filter((p) => p.estado === "confirmado");
 
@@ -123,5 +161,8 @@ export function kpis(state: AppState, reservas: Map<string, number>): Kpis {
     skusCriticos: SKUS.filter((s) => disponibleDe(s.codigo, reservas) < 12).length,
     montoPorFacturar: confirmados.reduce((a, p) => a + p.total, 0),
     reservados: confirmados.length,
+    solicitudesPendientes: todos.filter(
+      (p) => esSolicitud(p) && p.estadoSolicitud === "pendiente"
+    ).length,
   };
 }

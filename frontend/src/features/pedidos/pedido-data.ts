@@ -26,6 +26,28 @@ export type PedidoEvento = {
   detalle: string;
 };
 
+/**
+ * RF-20: un requerimiento se parte en dos documentos de naturaleza distinta.
+ *
+ *   *"una cosa es la compra y otra cosa es la solicitud de compra"*
+ *   *"el pedido está en base al stock y la solicitud sobre lo que deseo"*
+ *
+ * El **pedido** es compra en firme: solo contiene lo que hay stock, y lo
+ * reserva. La **solicitud** es lo que el cliente quiere y no se puede atender
+ * hoy; no reserva nada y se aprueba o se rechaza (RF-21).
+ */
+export type TipoDocumento = "pedido" | "solicitud";
+
+/** RF-21: *"o lo atiendo o no lo atiendo"*. */
+export type EstadoSolicitud = "pendiente" | "aprobada" | "rechazada" | "atendida";
+
+export const ESTADO_SOLICITUD_LABEL: Record<EstadoSolicitud, string> = {
+  pendiente: "Pendiente",
+  aprobada: "Aprobada",
+  rechazada: "Rechazada",
+  atendida: "Atendida",
+};
+
 export type EstadoPedido =
   | "borrador"
   | "confirmado"
@@ -50,6 +72,11 @@ export const CAUSA_SALDO_LABEL: Record<CausaSaldo, string> = {
   boston: "Responsabilidad de Boston",
 };
 
+/** Un documento es solicitud solo si lo dice; todo lo anterior era pedido. */
+export function esSolicitud(p: PedidoDetalle): boolean {
+  return p.tipo === "solicitud";
+}
+
 /** Estados que ocupan stock. Un borrador o un anulado no reservan nada. */
 export const ESTADOS_QUE_RESERVAN: EstadoPedido[] = [
   "confirmado",
@@ -59,6 +86,15 @@ export const ESTADOS_QUE_RESERVAN: EstadoPedido[] = [
 
 export type PedidoDetalle = {
   nro: string;
+  /**
+   * RF-20. Ausente en los datos semilla y en todo lo guardado antes del split:
+   * se interpreta como "pedido", que es lo que eran.
+   */
+  tipo?: TipoDocumento;
+  /** Solo en las solicitudes. */
+  estadoSolicitud?: EstadoSolicitud;
+  /** Número del documento hermano nacido de la misma confirmación. */
+  documentoHermano?: string;
   cliente: string;
   /** null en un borrador armado desde el catálogo, antes de elegir cliente. */
   clienteId: string | null;
@@ -276,4 +312,6 @@ export type PedidoResumen = {
   items: number;
   total: number;
   saldo: boolean;
+  tipo: TipoDocumento;
+  estadoSolicitud?: EstadoSolicitud;
 };

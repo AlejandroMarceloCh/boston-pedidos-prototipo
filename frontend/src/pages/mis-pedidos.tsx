@@ -27,7 +27,7 @@ const estadoConfig: Record<Estado, { label: string; variant: "default" | "second
   anulado: { label: "Anulado", variant: "destructive" },
 };
 
-type Filtro = "todos" | "borradores" | "confirmados" | "saldos";
+type Filtro = "todos" | "borradores" | "confirmados" | "saldos" | "solicitudes";
 
 export default function MisPedidosPage() {
   const { resumenes: PEDIDOS } = usePedidos();
@@ -40,9 +40,12 @@ export default function MisPedidosPage() {
   // ?estado=… — lo usan los KPI del dashboard para llegar ya filtrados.
   useEffect(() => {
     const e = params.get("estado");
-    if (!e) return;
-    if (e in estadoConfig) setEstadoFiltro(e as Estado);
+    const tab = params.get("tab");
+    if (!e && !tab) return;
+    if (e && e in estadoConfig) setEstadoFiltro(e as Estado);
+    if (tab === "solicitudes") setFiltro("solicitudes");
     params.delete("estado");
+    params.delete("tab");
     setParams(params, { replace: true });
   }, [params, setParams]);
   const [selectedPedido, setSelectedPedido] = useState<string | null>(null);
@@ -55,19 +58,27 @@ export default function MisPedidosPage() {
       if (!matches) return false;
       if (estadoFiltro && p.estado !== estadoFiltro) return false;
       switch (filtro) {
+        case "solicitudes":
+          return p.tipo === "solicitud";
         case "borradores":
-          return p.estado === "borrador";
+          return p.tipo === "pedido" && p.estado === "borrador";
         case "confirmados":
-          return p.estado === "confirmado";
+          return p.tipo === "pedido" && p.estado === "confirmado";
         case "saldos":
-          return !!p.saldo;
+          return p.tipo === "pedido" && !!p.saldo;
         default:
-          return true;
+          // "Todos" son los pedidos: las solicitudes tienen su propia pestaña
+          // para que el contador y el importe del mes no se descuadren.
+          return p.tipo === "pedido";
       }
     });
   }, [query, filtro, estadoFiltro, PEDIDOS]);
 
-  const totalMes = PEDIDOS.filter((p) => p.estado !== "anulado").reduce((a, p) => a + p.total, 0);
+  // Solo compras en firme: una solicitud no es venta (RF-24).
+  const soloPedidos = PEDIDOS.filter((p) => p.tipo === "pedido");
+  const totalMes = soloPedidos
+    .filter((p) => p.estado !== "anulado")
+    .reduce((a, p) => a + p.total, 0);
 
   return (
     <div className="mx-auto max-w-7xl px-7 lg:px-12 py-10 animate-fade-in">
@@ -81,7 +92,7 @@ export default function MisPedidosPage() {
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mis pedidos</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {PEDIDOS.length} pedidos este mes · {formatCurrency(totalMes)} en total.
+            {soloPedidos.length} pedidos este mes · {formatCurrency(totalMes)} en total.
           </p>
         </div>
         <Link to="/pedidos/nuevo">
@@ -110,6 +121,20 @@ export default function MisPedidosPage() {
               <TabsTrigger value="borradores">Borradores</TabsTrigger>
               <TabsTrigger value="confirmados">Confirmados</TabsTrigger>
               <TabsTrigger value="saldos">Con saldo</TabsTrigger>
+              <TabsTrigger value="solicitudes">
+                Solicitudes
+                {PEDIDOS.filter(
+                  (p) => p.tipo === "solicitud" && p.estadoSolicitud === "pendiente"
+                ).length > 0 && (
+                  <span className="ml-1.5 tabular text-[10px] rounded-full bg-warning/15 text-warning px-1.5 py-0.5">
+                    {
+                      PEDIDOS.filter(
+                        (p) => p.tipo === "solicitud" && p.estadoSolicitud === "pendiente"
+                      ).length
+                    }
+                  </span>
+                )}
+              </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -180,7 +205,15 @@ export default function MisPedidosPage() {
                     <p className="font-medium truncate max-w-[280px]">{p.cliente}</p>
                   </td>
                   <td className="py-3.5">
-                    <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                    {p.tipo === "solicitud" ? (
+                      <Badge
+                        variant={p.estadoSolicitud === "rechazada" ? "destructive" : "warning"}
+                      >
+                        Solicitud
+                      </Badge>
+                    ) : (
+                      <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                    )}
                   </td>
                   <td className="py-3.5 text-right">
                     <span className="tabular text-xs text-muted-foreground">{p.items}</span>

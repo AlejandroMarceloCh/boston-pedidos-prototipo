@@ -34,7 +34,7 @@ export default function DashboardPage() {
   });
   const [selectedCliente, setSelectedCliente] = useState<string | null>(null);
   const [selectedPedido, setSelectedPedido] = useState<string | null>(null);
-  const { resumenes } = usePedidos();
+  const { pedidos: resumenes } = usePedidos();
   const k = useKpis();
 
   // Pedidos de hoy de verdad: antes listaba los 5 más recientes de cualquier
@@ -56,11 +56,11 @@ export default function DashboardPage() {
       to: "/pedidos",
     },
     {
-      label: "Por confirmar",
-      value: String(k.porConfirmar),
-      delta: k.porConfirmar === 1 ? "borrador pendiente" : "borradores pendientes",
+      label: "Solicitudes",
+      value: String(k.solicitudesPendientes),
+      delta: "sin stock, esperando respuesta",
       icon: Clock,
-      to: "/pedidos?estado=borrador",
+      to: "/pedidos?tab=solicitudes",
     },
     {
       label: "Stock crítico",

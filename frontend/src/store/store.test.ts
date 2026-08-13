@@ -5,8 +5,41 @@ import { semilla } from "@/store/semilla";
 import { siguienteNro, reservasPorSku, disponibleDe, resumenes, kpis } from "@/store/selectors";
 import { calcularTotales } from "@/lib/pedido-calc";
 import { reducer } from "@/store/app-store";
+import { nroSolicitudDe } from "@/store/selectors";
+import type { AppState } from "@/store/semilla";
 import { ESTADOS_QUE_RESERVAN } from "@/features/pedidos/pedido-data";
 import { SKUS } from "@/lib/mock-data";
+
+
+/** Construye la acción de confirmar repartiendo contra el stock disponible. */
+function accionConfirmar(state: AppState, nro: string, fecha = "2027-03-15 10:00") {
+  const p = state.pedidos[nro];
+  const reservas = reservasPorSku(state);
+  const pedido = [];
+  const solicitud = [];
+  for (const item of p.items) {
+    const disp = disponibleDe(item.sku, reservas);
+    const atendible = Math.max(0, Math.min(item.cantidad, disp));
+    const excedente = item.cantidad - atendible;
+    if (atendible > 0) pedido.push({ ...item, cantidad: atendible, atendible });
+    if (excedente > 0) solicitud.push({ ...item, cantidad: excedente, atendible: 0 });
+  }
+  const subtotal = pedido.reduce((a, i) => a + i.cantidad * i.precio, 0);
+  return {
+    type: "pedido/confirmar" as const,
+    nro,
+    fecha,
+    reparto: { pedido, solicitud },
+    nroSolicitud: nroSolicitudDe(nro),
+    totales: {
+      subtotal,
+      descuentoTotal: 0,
+      igv: 0,
+      total: subtotal,
+      subtotalSolicitud: solicitud.reduce((a, i) => a + i.cantidad * i.precio, 0),
+    },
+  };
+}
 
 describe("semilla", () => {
   it("rebasea las fechas sobre hoy y conserva los 7 pedidos", () => {
@@ -126,12 +159,7 @@ describe("ciclo de vida del pedido", () => {
     const borrador = Object.values(s.pedidos).find((p) => p.estado === "borrador")!;
     const eventosIniciales = borrador.eventos.length;
 
-    s = reducer(s, {
-      type: "pedido/confirmar",
-      nro: borrador.nro,
-      fecha: "2027-03-15 10:00",
-      saldoUnidades: 0,
-    });
+    s = reducer(s, accionConfirmar(s, borrador.nro));
     expect(s.pedidos[borrador.nro].estado).toBe("confirmado");
 
     s = reducer(s, {
@@ -153,19 +181,36 @@ describe("ciclo de vida del pedido", () => {
     );
   });
 
-  it("confirmar con faltante marca el pedido con saldo", () => {
+  it("confirmar con faltante ya no marca saldo: el excedente va a la solicitud", () => {
     let s = base();
     const borrador = Object.values(s.pedidos).find((p) => p.estado === "borrador")!;
+    // Se pide mucho más de lo que hay de ese SKU.
+    const sku = borrador.items[0].sku;
+    const disp = disponibleDe(sku, reservasPorSku(s));
     s = reducer(s, {
-      type: "pedido/confirmar",
-      nro: borrador.nro,
-      fecha: "2027-03-15 10:00",
-      saldoUnidades: 24,
+      type: "pedido/upsert",
+      pedido: {
+        ...borrador,
+        items: [{ ...borrador.items[0], cantidad: disp + 480 }],
+      },
     });
-    const p = s.pedidos[borrador.nro];
-    expect(p.tieneSaldo).toBe(true);
-    expect(p.saldoUnidades).toBe(24);
-    expect(p.eventos.some((e) => e.tipo === "observacion")).toBe(true);
+
+    const nroSol = nroSolicitudDe(borrador.nro);
+    s = reducer(s, accionConfirmar(s, borrador.nro));
+
+    const pedido = s.pedidos[borrador.nro];
+    const solicitud = s.pedidos[nroSol];
+
+    expect(pedido.estado).toBe("confirmado");
+    expect(pedido.tieneSaldo).toBe(false);
+    expect(pedido.items[0].cantidad).toBe(disp);
+    expect(pedido.documentoHermano).toBe(nroSol);
+
+    expect(solicitud).toBeDefined();
+    expect(solicitud.tipo).toBe("solicitud");
+    expect(solicitud.estadoSolicitud).toBe("pendiente");
+    expect(solicitud.items[0].cantidad).toBe(480);
+    expect(solicitud.documentoHermano).toBe(borrador.nro);
   });
 
   it("anular saca el pedido del cálculo de stock", () => {
@@ -268,5 +313,107 @@ describe("colaterales", () => {
       (p) => p.cliente === "Distribuidora Andina del Sur SAC"
     );
     expect(porNombre).toHaveLength(0);
+  });
+});
+
+// ===== RF-20 a RF-24 · Pedido vs Solicitud =====
+describe("RF-20 · el split de la confirmación", () => {
+  const base = () => semilla(new Date(2027, 2, 15, 12, 0));
+
+  /** Deja un borrador pidiendo `disp + extra` unidades de un solo SKU. */
+  function borradorExcedido(extra: number) {
+    let s = base();
+    const b = Object.values(s.pedidos).find((p) => p.estado === "borrador")!;
+    const sku = b.items[0].sku;
+    const disp = disponibleDe(sku, reservasPorSku(s));
+    s = reducer(s, {
+      type: "pedido/upsert",
+      pedido: { ...b, items: [{ ...b.items[0], cantidad: disp + extra }] },
+    });
+    return { s, nro: b.nro, sku, disp };
+  }
+
+  it("una solicitud NO reserva stock (o el excedente se contaría dos veces)", () => {
+    const { s, nro, sku, disp } = borradorExcedido(480);
+    const despues = reducer(s, accionConfirmar(s, nro));
+
+    // El pedido tomó todo lo disponible: no queda nada libre.
+    expect(disponibleDe(sku, reservasPorSku(despues))).toBe(0);
+    // Y la reserva es exactamente lo atendible, no las 480 extra.
+    expect(reservasPorSku(despues).get(sku)).toBe(disp);
+  });
+
+  it("el correlativo del día no se descuadra con solicitudes presentes", () => {
+    const { s, nro } = borradorExcedido(480);
+    const despues = reducer(s, accionConfirmar(s, nro));
+    const hoy = new Date(2027, 2, 15, 12, 0);
+
+    // Existe "…-NNN-S": si entrara en el conteo, slice(-3) leería "N-S".
+    expect(Object.keys(despues.pedidos).some((n) => n.endsWith("-S"))).toBe(true);
+    const siguiente = siguienteNro(despues, hoy);
+    expect(siguiente).toMatch(/^2027-0315-\d{3}$/);
+    expect(Number.isNaN(parseInt(siguiente.slice(-3), 10))).toBe(false);
+    expect(despues.pedidos[siguiente]).toBeUndefined();
+  });
+
+  it("sin excedente no nace ninguna solicitud", () => {
+    let s = base();
+    const b = Object.values(s.pedidos).find((p) => p.estado === "borrador")!;
+    const sku = b.items[0].sku;
+    const disp = disponibleDe(sku, reservasPorSku(s));
+    s = reducer(s, {
+      type: "pedido/upsert",
+      pedido: { ...b, items: [{ ...b.items[0], cantidad: Math.min(12, disp) }] },
+    });
+    const despues = reducer(s, accionConfirmar(s, b.nro));
+    expect(despues.pedidos[nroSolicitudDe(b.nro)]).toBeUndefined();
+    expect(despues.pedidos[b.nro].documentoHermano).toBeUndefined();
+  });
+
+  it("RF-21 · aprobar y rechazar dejan rastro en el historial", () => {
+    const { s, nro } = borradorExcedido(480);
+    let despues = reducer(s, accionConfirmar(s, nro));
+    const nroSol = nroSolicitudDe(nro);
+    const eventosAntes = despues.pedidos[nroSol].eventos.length;
+
+    despues = reducer(despues, {
+      type: "solicitud/resolver",
+      nro: nroSol,
+      fecha: "2027-03-16 09:00",
+      decision: "aprobada",
+    });
+    expect(despues.pedidos[nroSol].estadoSolicitud).toBe("aprobada");
+    expect(despues.pedidos[nroSol].eventos).toHaveLength(eventosAntes + 1);
+
+    despues = reducer(despues, {
+      type: "solicitud/resolver",
+      nro: nroSol,
+      fecha: "2027-03-16 10:00",
+      decision: "rechazada",
+      motivo: "Sin reposición prevista",
+    });
+    expect(despues.pedidos[nroSol].estadoSolicitud).toBe("rechazada");
+    expect(despues.pedidos[nroSol].eventos.at(-1)!.detalle).toContain("Sin reposición prevista");
+  });
+
+  it("RF-24 · los KPIs no cuentan solicitudes como venta", () => {
+    const { s, nro } = borradorExcedido(480);
+    const despues = reducer(s, accionConfirmar(s, nro));
+    const k = kpis(despues, reservasPorSku(despues));
+
+    // La solicitud aparece como pendiente, no como pedido por facturar.
+    expect(k.solicitudesPendientes).toBe(1);
+    const montoSoloPedidos = Object.values(despues.pedidos)
+      .filter((p) => p.tipo !== "solicitud" && p.estado === "confirmado")
+      .reduce((a, p) => a + p.total, 0);
+    expect(k.montoPorFacturar).toBeCloseTo(montoSoloPedidos, 2);
+  });
+
+  it("los documentos quedan vinculados en los dos sentidos", () => {
+    const { s, nro } = borradorExcedido(480);
+    const despues = reducer(s, accionConfirmar(s, nro));
+    const nroSol = nroSolicitudDe(nro);
+    expect(despues.pedidos[nro].documentoHermano).toBe(nroSol);
+    expect(despues.pedidos[nroSol].documentoHermano).toBe(nro);
   });
 });
