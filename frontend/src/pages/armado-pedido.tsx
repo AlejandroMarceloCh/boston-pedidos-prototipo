@@ -159,9 +159,7 @@ export default function ArmadoPedidoPage() {
   );
   const {
     totalUnidades,
-    totalSolicitadoUnidades,
     totalSaldoUnidades,
-    totalSaldoMonto,
     totalDocenas,
     subtotal,
     nivel,

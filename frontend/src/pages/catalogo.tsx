@@ -342,6 +342,10 @@ function CuadriculaDialog({
       aplicarInicial: activo?.aplicarInicial ?? true,
       slot3: activo?.slot3 ?? 0,
       nota: activo?.nota ?? "",
+      // RF-17: desde el catálogo se arma un borrador, y un borrador todavía no
+      // necesita fecha comprometida. Se conserva la que ya tuviera; se exige
+      // recién al confirmar, en el paso 4 del asistente.
+      fechaEntrega: activo?.fechaEntrega ?? "",
     });
     setBorradorActivo(nro);
 
