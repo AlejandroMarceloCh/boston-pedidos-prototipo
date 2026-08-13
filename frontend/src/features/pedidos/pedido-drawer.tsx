@@ -100,6 +100,7 @@ export function PedidoDrawer({
   } = useStore();
   const pedido = buscarPedido(pedidoId) ?? null;
   const vencido = pedido ? saldoVencido(pedido) : false;
+  const vencida = pedido ? reservaVencida(pedido) : false;
 
   // El drawer NO se cierra tras una transición: el badge y el historial se
   // actualizan a la vista, que es la prueba de que el cambio ocurrió.
@@ -481,7 +482,17 @@ export function PedidoDrawer({
                       <Ban className="h-3.5 w-3.5" />
                       Anular
                     </Button>
-                    <Button size="sm" onClick={facturar} className="gap-1.5">
+                    <Button
+                      size="sm"
+                      onClick={facturar}
+                      disabled={vencida}
+                      title={
+                        vencida
+                          ? "La reserva venció: hay que reconfirmar el pedido antes de facturar."
+                          : undefined
+                      }
+                      className="gap-1.5"
+                    >
                       <FileText className="h-3.5 w-3.5" />
                       Facturar
                     </Button>

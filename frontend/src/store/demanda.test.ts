@@ -27,12 +27,6 @@ function conSolicitud(extra = 480) {
     type: "pedido/confirmar",
     nro: b.nro,
     fecha: "2027-03-15 10:00",
-    reparto: {
-      pedido: [{ ...b.items[0], cantidad: disp, atendible: disp }],
-      solicitud: [{ ...b.items[0], cantidad: extra, atendible: 0 }],
-    },
-    nroSolicitud: nroSolicitudDe(b.nro),
-    totales: { subtotal: 0, descuentoTotal: 0, igv: 0, total: 0, subtotalSolicitud: 0 },
   });
   return { s, sku, extra, nroSol: nroSolicitudDe(b.nro), cliente: b.cliente };
 }

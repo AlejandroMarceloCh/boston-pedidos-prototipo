@@ -8,6 +8,7 @@ import { createContext, useContext, useEffect, useMemo, useReducer } from "react
 import type { ReactNode } from "react";
 import {
   CAUSA_SALDO_LABEL,
+  reservaVencida,
   type CausaSaldo,
   type ConfirmacionCliente,
   type Partida,
@@ -62,21 +63,14 @@ export type BorradorInput = {
 
 export type Action =
   | { type: "pedido/upsert"; pedido: PedidoDetalle }
-  | {
-      type: "pedido/confirmar";
-      nro: string;
-      fecha: string;
-      /** Cómo se reparten los ítems entre el pedido y su solicitud hermana. */
-      reparto: { pedido: PedidoItem[]; solicitud: PedidoItem[] };
-      nroSolicitud: string;
-      totales: {
-        subtotal: number;
-        descuentoTotal: number;
-        igv: number;
-        total: number;
-        subtotalSolicitud: number;
-      };
-    }
+  /**
+   * El reparto contra el stock lo hace el REDUCER, no quien despacha.
+   *
+   * El asistente guarda el borrador y lo confirma en el mismo tick: si el
+   * reparto se calculara fuera, leería un estado que todavía no contiene el
+   * pedido recién creado y la confirmación se perdería en silencio.
+   */
+  | { type: "pedido/confirmar"; nro: string; fecha: string }
   | {
       type: "pedido/confirmacionCliente";
       nro: string;
@@ -125,12 +119,42 @@ export function reducer(state: AppState, action: Action): AppState {
       const p = state.pedidos[action.nro];
       if (!p) return state;
 
-      // RF-20: la confirmación parte el requerimiento en dos documentos.
-      // El PEDIDO se queda con lo atendible y lo reserva; el excedente —lo que
-      // el cliente quiere y hoy no hay— nace como SOLICITUD hermana, que no
+      // RF-20: la confirmación parte el requerimiento en dos documentos. El
+      // PEDIDO se queda con lo atendible y lo reserva; el excedente —lo que el
+      // cliente quiere y hoy no hay— nace como SOLICITUD hermana, que no
       // reserva nada y espera respuesta.
-      const itemsPedido = action.reparto.pedido;
-      const itemsSolicitud = action.reparto.solicitud;
+      //
+      // Las reservas se calculan sobre el estado de ESTE dispatch, excluyendo
+      // el propio pedido: mientras es borrador no reserva, así que no hay nada
+      // suyo que descontar, pero si se reconfirma tampoco debe competir consigo
+      // mismo.
+      const reservas = reservasPorSku({
+        ...state,
+        pedidos: Object.fromEntries(
+          Object.entries(state.pedidos).filter(([nro]) => nro !== action.nro)
+        ),
+      });
+
+      const itemsPedido: PedidoItem[] = [];
+      const itemsSolicitud: PedidoItem[] = [];
+      for (const item of p.items) {
+        const disponible = disponibleDe(item.sku, reservas);
+        const atendible = Math.max(0, Math.min(item.cantidad, disponible));
+        const excedente = item.cantidad - atendible;
+        if (atendible > 0) itemsPedido.push({ ...item, cantidad: atendible, atendible });
+        if (excedente > 0)
+          itemsSolicitud.push({ ...item, cantidad: excedente, atendible: 0 });
+      }
+
+      const t = calcularTotales(
+        itemsPedido.map((i) => ({ cantidad: i.cantidad, precio: i.precio })),
+        {
+          aplicarInicial: p.aplicarInicial ?? true,
+          slot3: p.slot3 ?? 0,
+          condicion: p.condicion,
+        }
+      );
+      const nroSolicitud = nroSolicitudDe(action.nro);
 
       const pedidoConfirmado = conEvento(
         {
@@ -143,11 +167,11 @@ export function reducer(state: AppState, action: Action): AppState {
           // un pedido recién confirmado nunca nace con saldo. El saldo queda
           // reservado para el incumplimiento de una entrega comprometida.
           tieneSaldo: false,
-          subtotal: action.totales.subtotal,
-          descuentoTotal: action.totales.descuentoTotal,
-          igv: action.totales.igv,
-          total: action.totales.total,
-          documentoHermano: itemsSolicitud.length > 0 ? action.nroSolicitud : undefined,
+          subtotal: r2(t.subtotal),
+          descuentoTotal: r2(t.totalDescuento),
+          igv: r2(t.igv),
+          total: r2(t.total),
+          documentoHermano: itemsSolicitud.length > 0 ? nroSolicitud : undefined,
         },
         { fecha: action.fecha, tipo: "confirmado", detalle: "Stock reservado · 48h" }
       );
@@ -156,9 +180,9 @@ export function reducer(state: AppState, action: Action): AppState {
 
       if (itemsSolicitud.length > 0) {
         const unidades = itemsSolicitud.reduce((a, i) => a + i.cantidad, 0);
-        pedidos[action.nroSolicitud] = {
+        pedidos[nroSolicitud] = {
           ...p,
-          nro: action.nroSolicitud,
+          nro: nroSolicitud,
           tipo: "solicitud",
           estadoSolicitud: "pendiente",
           documentoHermano: action.nro,
@@ -169,9 +193,10 @@ export function reducer(state: AppState, action: Action): AppState {
           saldoUnidades: undefined,
           causaSaldo: undefined,
           factura: undefined,
+          partidas: undefined,
           // Una solicitud no tiene importe comprometido: el precio se pacta
           // cuando se aprueba y se sabe cuándo se puede atender.
-          subtotal: action.totales.subtotalSolicitud,
+          subtotal: r2(itemsSolicitud.reduce((a, i) => a + i.cantidad * i.precio, 0)),
           descuentoTotal: 0,
           igv: 0,
           total: 0,
@@ -239,6 +264,11 @@ export function reducer(state: AppState, action: Action): AppState {
     case "pedido/facturar": {
       const p = state.pedidos[action.nro];
       if (!p) return state;
+
+      // RF-02: si la reserva venció, el stock volvió a estar disponible y pudo
+      // haberse vendido a otro. Facturar sin revalidar sería comprometer
+      // unidades que ya no están: se rechaza y hay que reconfirmar.
+      if (reservaVencida(p)) return state;
 
       // RF-41: se emite una factura por partida. Con una sola partida —el caso
       // corriente— esto es exactamente lo de antes: una factura y el pedido
@@ -393,8 +423,8 @@ type StoreValue = {
   state: AppState;
   /** Crea o actualiza un borrador. Devuelve el número del pedido. */
   guardarBorrador: (input: BorradorInput) => string;
-  /** Confirma y parte en pedido + solicitud. Devuelve el nro de la solicitud, o null. */
-  confirmarPedido: (nro: string) => string | null;
+  /** Confirma y parte en pedido + solicitud (RF-20). */
+  confirmarPedido: (nro: string) => void;
   marcarConfirmacionCliente: (
     nro: string,
     valor: ConfirmacionCliente,
@@ -461,6 +491,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
       const t = calcularTotales(lineasConStock, {
         aplicarInicial: input.aplicarInicial,
         slot3: input.slot3,
+        condicion: input.condicion ?? previo?.condicion,
       });
 
       const pedido: PedidoDetalle = {
@@ -506,57 +537,9 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
     return {
       state,
       guardarBorrador,
-      /**
-       * RF-20. Reparte los ítems contra el stock del momento: lo atendible se
-       * queda en el pedido, el excedente arma la solicitud hermana. Devuelve
-       * el número de la solicitud si nació alguna.
-       */
-      confirmarPedido: (nro) => {
-        const p = state.pedidos[nro];
-        if (!p) return null;
-
-        const reservas = reservasPorSku(state);
-        const itemsPedido: PedidoItem[] = [];
-        const itemsSolicitud: PedidoItem[] = [];
-
-        for (const item of p.items) {
-          const disponible = disponibleDe(item.sku, reservas);
-          const atendible = Math.max(0, Math.min(item.cantidad, disponible));
-          const excedente = item.cantidad - atendible;
-          if (atendible > 0) {
-            itemsPedido.push({ ...item, cantidad: atendible, atendible });
-          }
-          if (excedente > 0) {
-            itemsSolicitud.push({ ...item, cantidad: excedente, atendible: 0 });
-          }
-        }
-
-        const t = calcularTotales(
-          itemsPedido.map((i) => ({ cantidad: i.cantidad, precio: i.precio })),
-          { aplicarInicial: p.aplicarInicial ?? true, slot3: p.slot3 ?? 0 }
-        );
-        const subtotalSolicitud = itemsSolicitud.reduce(
-          (a, i) => a + i.cantidad * i.precio,
-          0
-        );
-
-        const nroSolicitud = nroSolicitudDe(nro);
-        dispatch({
-          type: "pedido/confirmar",
-          nro,
-          fecha: ahoraTexto(),
-          reparto: { pedido: itemsPedido, solicitud: itemsSolicitud },
-          nroSolicitud,
-          totales: {
-            subtotal: r2(t.subtotal),
-            descuentoTotal: r2(t.totalDescuento),
-            igv: r2(t.igv),
-            total: r2(t.total),
-            subtotalSolicitud: r2(subtotalSolicitud),
-          },
-        });
-        return itemsSolicitud.length > 0 ? nroSolicitud : null;
-      },
+      /** RF-20. El reparto lo hace el reducer (ver la acción). */
+      confirmarPedido: (nro) =>
+        dispatch({ type: "pedido/confirmar", nro, fecha: ahoraTexto() }),
       marcarConfirmacionCliente: (nro, valor, detalle) =>
         dispatch({
           type: "pedido/confirmacionCliente",
@@ -574,7 +557,7 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         const base = parseInt(siguienteFactura(state).split("-")[1], 10);
         const facturas = Array.from(
           { length: cuantas },
-          (_, i) => `F001-${base + i}`
+          (_, i) => `F001-${String(base + i).padStart(5, "0")}`
         );
         dispatch({ type: "pedido/facturar", nro, fecha: ahoraTexto(), facturas });
       },

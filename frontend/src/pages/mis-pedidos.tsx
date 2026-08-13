@@ -140,8 +140,54 @@ export default function MisPedidosPage() {
         </div>
       </Card>
 
-      {/* Tabla */}
-      <Card className="overflow-hidden">
+      {/* Lista en móvil: la tabla de 7 columnas recortaba el número y el total */}
+      <div className="sm:hidden space-y-2">
+        {filtrados.map((p) => {
+          const cfg = estadoConfig[p.estado];
+          return (
+            <button
+              key={p.nro}
+              onClick={() => setSelectedPedido(p.nro)}
+              className="w-full text-left rounded-xl border border-border bg-surface shadow-card p-4 transition-colors hover:bg-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="tabular text-[11.5px] text-muted-foreground">{p.nro}</p>
+                  <p className="text-[14px] font-medium truncate mt-0.5">{p.cliente}</p>
+                </div>
+                {p.tipo === "solicitud" ? (
+                  <Badge
+                    variant={p.estadoSolicitud === "rechazada" ? "destructive" : "warning"}
+                  >
+                    Solicitud
+                  </Badge>
+                ) : (
+                  <Badge variant={cfg.variant}>{cfg.label}</Badge>
+                )}
+              </div>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <span className="text-[11.5px] text-muted-foreground tabular">
+                  {p.items} und · {p.fecha.slice(0, 10)}
+                </span>
+                <span className="tabular text-[15px] font-semibold">
+                  {formatCurrency(p.total)}
+                </span>
+              </div>
+              {p.saldo && (
+                <p className="mt-2 text-[11px] text-warning">Con saldo pendiente</p>
+              )}
+            </button>
+          );
+        })}
+        {filtrados.length === 0 && (
+          <Card className="py-12 text-center">
+            <p className="text-sm font-medium">Sin resultados</p>
+          </Card>
+        )}
+      </div>
+
+      {/* Tabla, desde sm */}
+      <Card className="overflow-hidden hidden sm:block">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border bg-muted/30 text-muted-foreground">

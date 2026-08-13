@@ -11,34 +11,13 @@ import { ESTADOS_QUE_RESERVAN } from "@/features/pedidos/pedido-data";
 import { SKUS } from "@/lib/mock-data";
 
 
-/** Construye la acción de confirmar repartiendo contra el stock disponible. */
-function accionConfirmar(state: AppState, nro: string, fecha = "2027-03-15 10:00") {
-  const p = state.pedidos[nro];
-  const reservas = reservasPorSku(state);
-  const pedido = [];
-  const solicitud = [];
-  for (const item of p.items) {
-    const disp = disponibleDe(item.sku, reservas);
-    const atendible = Math.max(0, Math.min(item.cantidad, disp));
-    const excedente = item.cantidad - atendible;
-    if (atendible > 0) pedido.push({ ...item, cantidad: atendible, atendible });
-    if (excedente > 0) solicitud.push({ ...item, cantidad: excedente, atendible: 0 });
-  }
-  const subtotal = pedido.reduce((a, i) => a + i.cantidad * i.precio, 0);
-  return {
-    type: "pedido/confirmar" as const,
-    nro,
-    fecha,
-    reparto: { pedido, solicitud },
-    nroSolicitud: nroSolicitudDe(nro),
-    totales: {
-      subtotal,
-      descuentoTotal: 0,
-      igv: 0,
-      total: subtotal,
-      subtotalSolicitud: solicitud.reduce((a, i) => a + i.cantidad * i.precio, 0),
-    },
-  };
+/**
+ * La acción de confirmar solo lleva el número y la fecha: el reparto contra el
+ * stock lo hace el reducer con su propio estado. Antes se calculaba fuera, y
+ * eso hacía que confirmar un pedido recién creado no encontrara el pedido.
+ */
+function accionConfirmar(_state: AppState, nro: string, fecha = "2027-03-15 10:00") {
+  return { type: "pedido/confirmar" as const, nro, fecha };
 }
 
 describe("semilla", () => {

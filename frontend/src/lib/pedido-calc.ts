@@ -26,7 +26,17 @@ export type OpcionesDescuento = {
   aplicarInicial: boolean;
   /** Descuento manual adicional, en % (el "slot 3"). */
   slot3: number;
+  /**
+   * RF-35 · Condición de venta (E/C/L/O/D). Obsequio y donación **no cobran**:
+   * el pedido conserva sus unidades y su valorización, pero no genera importe
+   * a facturar ni IGV. Sin esto, un obsequio salía con total e IGV como una
+   * venta normal.
+   */
+  condicion?: string;
 };
+
+/** Condiciones que no generan cobro. Ver CONDICIONES_VENTA en pedido-data. */
+const SIN_COBRO = ["O", "D"];
 
 /**
  * Desglose de una línea. RNF-05: las pantallas deben pintar ESTOS importes y no
@@ -72,8 +82,9 @@ export type TotalesPedido = {
 
 export function calcularTotales(
   lineas: LineaCalculable[],
-  { aplicarInicial, slot3 }: OpcionesDescuento
+  { aplicarInicial, slot3, condicion }: OpcionesDescuento
 ): TotalesPedido {
+  const cobra = !SIN_COBRO.includes(condicion ?? "");
   // Normalizar: por cada línea, atendible = min(solicitado, stock disponible).
   // Si stockDisponible no viene, se asume que todo es atendible (compat hacia atrás).
   const lineasNorm = lineas.map((l) => {
@@ -104,7 +115,9 @@ export function calcularTotales(
   const totalDescuento = Math.min(descuentoBruto, subtotal * (DESCUENTO_MAX / 100));
   const descuentoTopeado = descuentoBruto > totalDescuento + 0.005;
 
-  const base = subtotal - totalDescuento;
+  // Un obsequio o una donación se entregan: mueven stock y se valorizan, pero
+  // no se cobran. La base imponible y el IGV son cero.
+  const base = cobra ? subtotal - totalDescuento : 0;
   const igv = base * IGV;
 
   return {

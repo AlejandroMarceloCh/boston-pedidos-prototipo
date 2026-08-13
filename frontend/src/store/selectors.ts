@@ -48,43 +48,53 @@ export function nroSolicitudDe(nroPedido: string): string {
   return `${nroPedido}${SUFIJO_SOLICITUD}`;
 }
 
-/** Correlativo genérico de documentos con formato "SSSS-NNNNN". */
+/**
+ * Siguiente correlativo de un documento tributario.
+ *
+ * Mira **todas** las apariciones del campo: la del pedido y la de cada partida.
+ * Antes `siguienteFactura` solo leía `pedido.factura` —la primera de cada
+ * pedido—, así que la segunda factura de un pedido partido quedaba invisible y
+ * el pedido siguiente reutilizaba ese número. Duplicar un correlativo
+ * tributario no es un detalle: es un problema con SUNAT.
+ */
 function siguienteCorrelativo(
   state: AppState,
   serie: string,
   campo: "factura" | "guia" | "notaCredito",
-  desde: number
+  desde: number,
+  ancho: number
 ): string {
   const maximo = Object.values(state.pedidos).reduce((max, p) => {
-    const docs = [
-      p[campo === "factura" ? "factura" : "factura"],
+    const docs: (string | undefined)[] = [
+      campo === "factura" ? p.factura : undefined,
       ...(p.partidas ?? []).map((par) => par[campo]),
     ];
     return docs.reduce((m, d) => {
-      const n = parseInt(String(d ?? "").split("-")[1] ?? "0", 10);
+      if (!d) return m;
+      const [serieDoc, num] = String(d).split("-");
+      // Solo compite consigo mismo: una guía no puede correr el correlativo de
+      // las facturas ni al revés.
+      if (serieDoc !== serie) return m;
+      const n = parseInt(num ?? "0", 10);
       return Number.isNaN(n) ? m : Math.max(m, n);
     }, max);
   }, desde);
-  return `${serie}-${maximo + 1}`;
+  return `${serie}-${String(maximo + 1).padStart(ancho, "0")}`;
+}
+
+/** Siguiente factura: F001-12391 */
+export function siguienteFactura(state: AppState): string {
+  return siguienteCorrelativo(state, "F001", "factura", 12390, 5);
 }
 
 /** RF-43 · Siguiente guía de remisión: T001-00841 */
 export function siguienteGuia(state: AppState): string {
-  return siguienteCorrelativo(state, "T001", "guia", 840);
+  return siguienteCorrelativo(state, "T001", "guia", 840, 5);
 }
 
 /** RF-44 · Siguiente nota de crédito: FC01-00120 */
 export function siguienteNotaCredito(state: AppState): string {
-  return siguienteCorrelativo(state, "FC01", "notaCredito", 119);
-}
-
-/** Siguiente correlativo de factura: F001-12391 */
-export function siguienteFactura(state: AppState): string {
-  const maximo = Object.values(state.pedidos).reduce((max, p) => {
-    const n = parseInt(p.factura?.split("-")[1] ?? "0", 10);
-    return Number.isNaN(n) ? max : Math.max(max, n);
-  }, 12390);
-  return `F001-${maximo + 1}`;
+  return siguienteCorrelativo(state, "FC01", "notaCredito", 119, 5);
 }
 
 // ===== Listados =====

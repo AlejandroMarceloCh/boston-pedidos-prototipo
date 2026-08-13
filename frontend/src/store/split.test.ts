@@ -25,12 +25,6 @@ describe("e2e · pedir 500 cuando hay 20", () => {
       type: "pedido/confirmar",
       nro: b.nro,
       fecha: "2027-03-15 10:00",
-      reparto: {
-        pedido: [{ ...b.items[0], cantidad: atendible, atendible }],
-        solicitud: [{ ...b.items[0], cantidad: excedente, atendible: 0 }],
-      },
-      nroSolicitud: nroSolicitudDe(b.nro),
-      totales: { subtotal: 0, descuentoTotal: 0, igv: 0, total: 0, subtotalSolicitud: 0 },
     });
 
     const pedido = s.pedidos[b.nro];

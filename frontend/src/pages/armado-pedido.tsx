@@ -137,6 +137,8 @@ export default function ArmadoPedidoPage() {
     aplicarInicial: enEdicion?.aplicarInicial ?? true,
     nota: enEdicion?.nota ?? "",
     fechaEntrega: enEdicion?.fechaEntrega ?? "",
+    condicion: enEdicion?.condicion ?? "L",
+    partidas: JSON.stringify(enEdicion?.partidas ?? []),
   });
   const hayCambios =
     JSON.stringify(lineas) !== estadoInicial.current.lineas ||
@@ -189,7 +191,7 @@ export default function ArmadoPedidoPage() {
     base,
     igv,
     total,
-  } = calcularTotales(lineasConStock, { aplicarInicial, slot3 });
+  } = calcularTotales(lineasConStock, { aplicarInicial, slot3, condicion });
 
   const haySaldo = totalSaldoUnidades > 0;
 
@@ -312,6 +314,8 @@ export default function ArmadoPedidoPage() {
       slot3,
       nota,
       fechaEntrega,
+      partidas,
+      condicion,
     });
     // A partir del primer guardado se edita siempre el mismo pedido.
     if (!nroPedido) setNroPedido(n);
@@ -323,6 +327,8 @@ export default function ArmadoPedidoPage() {
       aplicarInicial,
       nota,
       fechaEntrega,
+      condicion,
+      partidas: JSON.stringify(partidas),
     };
     return n;
   };
@@ -341,10 +347,12 @@ export default function ArmadoPedidoPage() {
     const n = persistir();
     // RF-20: el store reparte contra el stock del momento. Lo atendible queda
     // en el pedido; lo que el cliente quiere y no hay nace como solicitud.
-    const nroSolicitud = confirmarEnStore(n);
+    confirmarEnStore(n);
     setBorradorActivo(null);
-    if (nroSolicitud) {
-      toast.success(`Pedido ${n} confirmado y solicitud ${nroSolicitud} registrada`, {
+    // El reducer crea la solicitud si hubo excedente; acá ya se sabe si lo hubo
+    // por el cálculo de la pantalla, y el número es determinista.
+    if (totalSaldoUnidades > 0) {
+      toast.success(`Pedido ${n} confirmado y solicitud ${n}-S registrada`, {
         description: `${totalUnidades} und con stock · ${totalSaldoUnidades} und quedan como solicitud a la espera de reposición.`,
       });
     } else {
