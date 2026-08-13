@@ -27,7 +27,7 @@ La columna «Falta» agrupa ❌ y ⛔.
 |---|---|---|---|
 | Catálogo y stock | 3 | 2 | 1 |
 | Toma de pedidos | 6 | 2 | 1 |
-| Pedido vs solicitud | 1 | 0 | 4 |
+| Pedido vs solicitud | 3 | 1 | 1 |
 | Descuentos y beneficios | 3 | 1 | 6 |
 | Facturación y entrega | 1 | 1 | 4 |
 | Cliente y crédito | 1 | 1 | 4 |
@@ -104,11 +104,11 @@ El ejemplo: el cliente quiere 500 y hay 20 → *"quiero las 20, y esas 480 es un
 
 | ID | Requisito | Estado |
 |---|---|---|
-| **RF-20** | Partir el requerimiento en dos documentos: **pedido** (lo que hay) y **solicitud/prepedido** (lo que falta). | ❌ |
-| **RF-21** | La solicitud se aprueba o se rechaza explícitamente. *"o lo atiendo o no lo atiendo"* | ❌ |
-| **RF-22** | El cliente puede originar solicitudes, incluso **sin ver el stock**. *"en el término de la solicitud ni siquiera tenga que mirar nuestros stocks el cliente"* | ❌ |
-| **RF-23** | Un pedido no debe comprometer lo que no existe. *"nosotros nos comprometemos aun por lo que no tenemos"* — política que la reunión califica de errada. | ✅ La matriz topea al stock y el paso 2 también; el exceso **no se puede pedir**. Efecto secundario: hoy el sistema **impide registrar** la demanda que no se puede atender, que es justo lo que RF-20 viene a capturar. |
-| **RF-24** | La proyección de demanda debe alimentarse de pedidos reales, no inflados. *"¿qué pasa si el pedido te inflan y luego te devuelven la mercadería? Te engañas tú solo."* Conecta con producción: *"tiene que ver con temas de producción"* | ❌ |
+| **RF-20** | Partir el requerimiento en dos documentos: **pedido** (lo que hay) y **solicitud/prepedido** (lo que falta). | ✅ Al confirmar; la solicitud lleva el número del pedido con sufijo `-S` y quedan vinculadas |
+| **RF-21** | La solicitud se aprueba o se rechaza explícitamente. *"o lo atiendo o no lo atiendo"* | ✅ Desde el detalle, con rastro en el historial |
+| **RF-22** | El cliente puede originar solicitudes, incluso **sin ver el stock**. *"en el término de la solicitud ni siquiera tenga que mirar nuestros stocks el cliente"* | ❌ El modelo ya lo soporta; falta el acceso del cliente, que necesita backend |
+| **RF-23** | Un pedido no debe comprometer lo que no existe. *"nosotros nos comprometemos aun por lo que no tenemos"* — política que la reunión califica de errada. | ✅ Ahora se puede **pedir** de más, pero el pedido confirmado solo contiene lo atendible: el resto va a la solicitud. Se registra la demanda sin comprometerla |
+| **RF-24** | La proyección de demanda debe alimentarse de pedidos reales, no inflados. *"¿qué pasa si el pedido te inflan y luego te devuelven la mercadería? Te engañas tú solo."* Conecta con producción: *"tiene que ver con temas de producción"* | 🟡 Los KPIs, el total del mes y los listados separan pedidos de solicitudes. Falta explotar la demanda registrada hacia producción |
 
 ---
 
@@ -222,18 +222,13 @@ del ERP y del guion P7.
 ## 11. Qué hacer primero
 
 **Ya cerrado** (agosto 2026): RF-32 descuento sobre lo atendible · RF-17 fecha comprometida ·
-RF-45 causa del saldo · RF-15 salida en móvil · RNF-05 cálculo único · y el barrido de
-defectos colaterales.
+RF-45 causa del saldo · RF-15 salida en móvil · RNF-05 cálculo único · **RF-20 a RF-24 el
+split pedido/solicitud** · y el barrido de defectos colaterales.
 
 Lo que sigue:
 
-1. **RF-20 a RF-24 — pedido vs solicitud.** El cambio de modelo que ordena facturación,
-   descuentos y proyección de demanda. Conviene decidirlo **antes** de construir el backend.
-   Hoy tiene un matiz que lo hace más urgente de lo que parecía: como el sistema **impide**
-   pedir más de lo que hay (RF-23), la demanda que no se puede atender no se registra en
-   ninguna parte — se pierde, igual que en el papel.
-2. **RF-41, RF-42** — facturación partida y multi-destino, que cambian la forma del pedido.
-3. **Vencimiento de la reserva** (RF-02): las 48 horas son texto; hay que decidir si existen
+1. **RF-41, RF-42** — facturación partida y multi-destino, que cambian la forma del pedido.
+2. **Vencimiento de la reserva** (RF-02): las 48 horas son texto; hay que decidir si existen
    de verdad y quién libera el stock cuando pasan (pregunta 10).
-4. Resto de descuentos (RF-33 a RF-39), cuando Comercial responda las preguntas 4, 5, 7 y 8.
-5. Crédito y prioridad (RF-51, RF-53), que dependen de datos que hoy no existen en ninguna base.
+3. Resto de descuentos (RF-33 a RF-39), cuando Comercial responda las preguntas 4, 5, 7 y 8.
+4. Crédito y prioridad (RF-51, RF-53), que dependen de datos que hoy no existen en ninguna base.
