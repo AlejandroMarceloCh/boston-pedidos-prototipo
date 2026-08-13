@@ -67,6 +67,25 @@ export type EstadoPedido =
  */
 export type CausaSaldo = "insumo" | "boston";
 
+/**
+ * RF-62 + RF-63: qué dijo el cliente sobre su pedido.
+ *
+ *   *"al momento que cierren la toma del pedido, automáticamente uno se refleje
+ *   acá y otro se dispara al cliente para que te lo confirme"*
+ *
+ * Hoy el envío es manual (se abre WhatsApp) y la respuesta se registra a mano.
+ * El disparo automático y el canal donde el cliente confirma solo necesitan
+ * backend: ver RF-62 en REQUISITOS.md.
+ */
+export type ConfirmacionCliente = "sin_enviar" | "enviado" | "aceptado" | "con_reparos";
+
+export const CONFIRMACION_LABEL: Record<ConfirmacionCliente, string> = {
+  sin_enviar: "Sin enviar",
+  enviado: "Enviado, esperando respuesta",
+  aceptado: "Aceptado por el cliente",
+  con_reparos: "El cliente pidió correcciones",
+};
+
 export const CAUSA_SALDO_LABEL: Record<CausaSaldo, string> = {
   insumo: "Falta de insumo",
   boston: "Responsabilidad de Boston",
@@ -163,6 +182,8 @@ export type PedidoDetalle = {
   saldoUnidades?: number;
   /** RF-45: causa del saldo. Solo tiene sentido si `tieneSaldo`. */
   causaSaldo?: CausaSaldo;
+  /** RF-62/63. Ausente = todavía no se envió nada al cliente. */
+  confirmacionCliente?: ConfirmacionCliente;
   /**
    * RF-17: fecha de entrega comprometida (ISO `YYYY-MM-DD`). Sin ella no se
    * puede saber si un saldo es responsabilidad de Boston: es la referencia

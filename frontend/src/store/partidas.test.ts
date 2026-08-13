@@ -116,3 +116,57 @@ describe("partidas", () => {
     expect(s.pedidos[p.nro].factura).toBe("F001-12391");
   });
 });
+
+// ===== RF-62 / RF-63 · Confirmación del cliente (parte manual) =====
+describe("confirmación del cliente", () => {
+  it("recorre sin enviar → enviado → aceptado, dejando rastro", () => {
+    let s = base();
+    const p = Object.values(s.pedidos).find((x) => x.estado === "confirmado")!;
+    expect(p.confirmacionCliente).toBeUndefined();
+
+    const antes = p.eventos.length;
+    s = reducer(s, {
+      type: "pedido/confirmacionCliente",
+      nro: p.nro,
+      fecha: "2027-03-16 09:00",
+      valor: "enviado",
+    });
+    expect(s.pedidos[p.nro].confirmacionCliente).toBe("enviado");
+
+    s = reducer(s, {
+      type: "pedido/confirmacionCliente",
+      nro: p.nro,
+      fecha: "2027-03-16 10:00",
+      valor: "aceptado",
+    });
+    expect(s.pedidos[p.nro].confirmacionCliente).toBe("aceptado");
+    expect(s.pedidos[p.nro].eventos).toHaveLength(antes + 2);
+  });
+
+  it("los reparos del cliente quedan como observación, no como confirmación", () => {
+    let s = base();
+    const p = Object.values(s.pedidos).find((x) => x.estado === "confirmado")!;
+    s = reducer(s, {
+      type: "pedido/confirmacionCliente",
+      nro: p.nro,
+      fecha: "2027-03-16 09:00",
+      valor: "con_reparos",
+      detalle: "Pidió cambiar el color de 2 líneas",
+    });
+    const ev = s.pedidos[p.nro].eventos.at(-1)!;
+    expect(ev.tipo).toBe("observacion");
+    expect(ev.detalle).toContain("color");
+  });
+
+  it("no altera el estado del pedido", () => {
+    let s = base();
+    const p = Object.values(s.pedidos).find((x) => x.estado === "confirmado")!;
+    s = reducer(s, {
+      type: "pedido/confirmacionCliente",
+      nro: p.nro,
+      fecha: "2027-03-16 09:00",
+      valor: "aceptado",
+    });
+    expect(s.pedidos[p.nro].estado).toBe("confirmado");
+  });
+});

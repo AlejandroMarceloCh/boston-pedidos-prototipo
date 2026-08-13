@@ -29,9 +29,9 @@ La columna «Falta» agrupa ❌ y ⛔.
 | Toma de pedidos | 6 | 2 | 1 |
 | Pedido vs solicitud | 3 | 1 | 1 |
 | Descuentos y beneficios | 3 | 1 | 6 |
-| Facturación y entrega | 1 | 1 | 4 |
+| Facturación y entrega | 3 | 1 | 2 |
 | Cliente y crédito | 1 | 1 | 4 |
-| Avisos y trazabilidad | 2 | 0 | 3 |
+| Avisos y trazabilidad | 2 | 2 | 1 |
 | No funcionales | 1 | 1 | 4 |
 
 ---
@@ -140,8 +140,8 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | ID | Requisito | Estado |
 |---|---|---|
 | **RF-40** | Emitir factura al pedido confirmado. | 🟡 Genera correlativo, sin documento real |
-| **RF-41** | **Facturación partida entre varios RUC.** *"de esas 100,000, 45,000 me las facturas a mí, 25,000 a ella"* | ❌ |
-| **RF-42** | **Entrega en varios destinos.** *"y quiero que esa me la entregues en ese sitio, y en ese otro sitio"* | ❌ El cliente tiene varias direcciones, pero el pedido elige una sola |
+| **RF-41** | **Facturación partida entre varios RUC.** *"de esas 100,000, 45,000 me las facturas a mí, 25,000 a ella"* | ✅ Partidas con RUC propio; una factura por partida y un evento por cada una |
+| **RF-42** | **Entrega en varios destinos.** *"y quiero que esa me la entregues en ese sitio, y en ese otro sitio"* | ✅ Cada partida tiene su dirección de entrega |
 | **RF-43** | **Guía de remisión** como documento separado de la factura. *"no es con la guía, es con la carga del almacén. Guía, factura, guía, factura."* | ❌ |
 | **RF-44** | Nota de crédito al anular un pedido facturado. | ❌ |
 | **RF-45** | Registrar el **saldo** (lo no atendido) y su causa: responsabilidad de Boston o falta de insumo. | ✅ `causaSaldo` (`insumo` / `boston`), reclasificable desde el detalle y con aviso cuando vence la fecha comprometida |
@@ -167,8 +167,8 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 |---|---|---|
 | **RF-60** | Historial de cada pedido con sus cambios de estado. | ✅ |
 | **RF-61** | Estados: borrador → confirmado → facturado → entregado, más anulado. | ✅ |
-| **RF-62** | **Confirmación automática al cliente** al cerrar el pedido. *"automáticamente uno se refleje acá y otro se dispara al cliente para que te lo confirme"* — hoy el cliente se entera cuando llega la mercadería. | ⛔ Abre WhatsApp con el texto y el número del cliente, pero el **envío es manual**. El disparo automático necesita WhatsApp Business API y backend |
-| **RF-63** | El cliente puede aceptar o corregir el pedido antes de que se despache. | ❌ |
+| **RF-62** | **Confirmación automática al cliente** al cerrar el pedido. *"automáticamente uno se refleje acá y otro se dispara al cliente para que te lo confirme"* — hoy el cliente se entera cuando llega la mercadería. | 🟡 Abre WhatsApp con el texto y el número, y **registra que se envió**. El disparo **automático** necesita WhatsApp Business API y backend |
+| **RF-63** | El cliente puede aceptar o corregir el pedido antes de que se despache. | 🟡 Se registra a mano si aceptó o pidió correcciones, con rastro. El canal donde el cliente responde solo necesita backend |
 | **RF-64** | Reportes de ventas y almacén. *"se tiene que generar información de las ventas, del almacén, de todo"* | ❌ |
 
 ---
@@ -222,13 +222,13 @@ del ERP y del guion P7.
 ## 11. Qué hacer primero
 
 **Ya cerrado** (agosto 2026): RF-32 descuento sobre lo atendible · RF-17 fecha comprometida ·
-RF-45 causa del saldo · RF-15 salida en móvil · RNF-05 cálculo único · **RF-20 a RF-24 el
-split pedido/solicitud** · y el barrido de defectos colaterales.
+RF-45 causa del saldo · RF-15 salida en móvil · RNF-05 cálculo único · RF-20 a RF-24 el split
+pedido/solicitud · **RF-41 y RF-42 facturación partida y multi-destino** · RF-62/63 en su
+parte manual · y el barrido de defectos colaterales.
 
 Lo que sigue:
 
-1. **RF-41, RF-42** — facturación partida y multi-destino, que cambian la forma del pedido.
-2. **Vencimiento de la reserva** (RF-02): las 48 horas son texto; hay que decidir si existen
+1. **Vencimiento de la reserva** (RF-02): las 48 horas son texto; hay que decidir si existen
    de verdad y quién libera el stock cuando pasan (pregunta 10).
 3. Resto de descuentos (RF-33 a RF-39), cuando Comercial responda las preguntas 4, 5, 7 y 8.
 4. Crédito y prioridad (RF-51, RF-53), que dependen de datos que hoy no existen en ninguna base.

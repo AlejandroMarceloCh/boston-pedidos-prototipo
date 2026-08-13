@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import {
   CAUSA_SALDO_LABEL,
   type CausaSaldo,
+  type ConfirmacionCliente,
   type Partida,
   type PedidoDetalle,
   type PedidoEvento,
@@ -71,6 +72,13 @@ export type Action =
         total: number;
         subtotalSolicitud: number;
       };
+    }
+  | {
+      type: "pedido/confirmacionCliente";
+      nro: string;
+      fecha: string;
+      valor: ConfirmacionCliente;
+      detalle?: string;
     }
   | {
       type: "solicitud/resolver";
@@ -167,6 +175,32 @@ export function reducer(state: AppState, action: Action): AppState {
       }
 
       return { ...state, pedidos };
+    }
+
+    case "pedido/confirmacionCliente": {
+      const p = state.pedidos[action.nro];
+      if (!p) return state;
+      return {
+        ...state,
+        pedidos: {
+          ...state.pedidos,
+          [action.nro]: conEvento(
+            { ...p, confirmacionCliente: action.valor },
+            {
+              fecha: action.fecha,
+              tipo: action.valor === "con_reparos" ? "observacion" : "confirmado",
+              detalle:
+                action.detalle ??
+                {
+                  sin_enviar: "Confirmación del cliente reiniciada",
+                  enviado: "Pedido enviado al cliente para su confirmación",
+                  aceptado: "El cliente aceptó el pedido",
+                  con_reparos: "El cliente pidió correcciones",
+                }[action.valor],
+            }
+          ),
+        },
+      };
     }
 
     case "solicitud/resolver": {
@@ -324,6 +358,11 @@ type StoreValue = {
   guardarBorrador: (input: BorradorInput) => string;
   /** Confirma y parte en pedido + solicitud. Devuelve el nro de la solicitud, o null. */
   confirmarPedido: (nro: string) => string | null;
+  marcarConfirmacionCliente: (
+    nro: string,
+    valor: ConfirmacionCliente,
+    detalle?: string
+  ) => void;
   resolverSolicitud: (
     nro: string,
     decision: "aprobada" | "rechazada",
@@ -481,6 +520,14 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         });
         return itemsSolicitud.length > 0 ? nroSolicitud : null;
       },
+      marcarConfirmacionCliente: (nro, valor, detalle) =>
+        dispatch({
+          type: "pedido/confirmacionCliente",
+          nro,
+          fecha: ahoraTexto(),
+          valor,
+          detalle,
+        }),
       resolverSolicitud: (nro, decision, motivo) =>
         dispatch({ type: "solicitud/resolver", nro, fecha: ahoraTexto(), decision, motivo }),
       facturarPedido: (nro) => {

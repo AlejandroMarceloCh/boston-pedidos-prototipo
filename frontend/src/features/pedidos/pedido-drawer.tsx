@@ -36,6 +36,7 @@ import { usePedidos } from "@/store/hooks";
 import { useStore } from "@/store/app-store";
 import {
   CAUSA_SALDO_LABEL,
+  CONFIRMACION_LABEL,
   ESTADO_SOLICITUD_LABEL,
   esSolicitud,
   importeDePartida,
@@ -92,6 +93,7 @@ export function PedidoDrawer({
     duplicarPedido,
     setCausaSaldo,
     resolverSolicitud,
+    marcarConfirmacionCliente,
   } = useStore();
   const pedido = buscarPedido(pedidoId) ?? null;
   const vencido = pedido ? saldoVencido(pedido) : false;
@@ -147,6 +149,9 @@ export function PedidoDrawer({
       "_blank",
       "noopener"
     );
+    // RF-62: el envío es manual, pero queda constancia de que se mandó. Sin
+    // esto no hay forma de saber qué pedidos esperan respuesta del cliente.
+    marcarConfirmacionCliente(pedido.nro, "enviado");
   };
 
   return (
@@ -277,6 +282,55 @@ export function PedidoDrawer({
                             </div>
                           );
                         })}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* RF-62/63 · Qué dijo el cliente */}
+                {!esSolicitud(pedido) && pedido.estado !== "borrador" && (
+                  <>
+                    <Separator />
+                    <div>
+                      <p className="text-[10px] uppercase tracking-widest text-muted-foreground font-medium mb-2">
+                        Confirmación del cliente
+                      </p>
+                      <div className="rounded-lg border border-border p-3">
+                        <p className="text-[12px]">
+                          {CONFIRMACION_LABEL[pedido.confirmacionCliente ?? "sin_enviar"]}
+                        </p>
+                        {(pedido.confirmacionCliente ?? "sin_enviar") === "enviado" && (
+                          <div className="flex flex-wrap gap-2 mt-2.5">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                marcarConfirmacionCliente(pedido.nro, "aceptado");
+                                toast.success("Registrado: el cliente aceptó");
+                              }}
+                              className="gap-1.5"
+                            >
+                              <Check className="h-3.5 w-3.5" />
+                              Aceptó
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                marcarConfirmacionCliente(pedido.nro, "con_reparos");
+                                toast("Registrado: el cliente pidió correcciones");
+                              }}
+                              className="gap-1.5"
+                            >
+                              <AlertTriangle className="h-3.5 w-3.5" />
+                              Pidió cambios
+                            </Button>
+                          </div>
+                        )}
+                        <p className="mt-2 text-[10.5px] text-muted-foreground">
+                          El envío y la respuesta se registran a mano. El aviso automático
+                          necesita backend.
+                        </p>
                       </div>
                     </div>
                   </>
