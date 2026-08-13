@@ -1,0 +1,43 @@
+// Hooks finos sobre el store. Memorizan los cálculos derivados para que las
+// vistas no los repitan en cada render.
+import { useMemo } from "react";
+import { useStore } from "./app-store";
+import {
+  disponibleDe,
+  kpis,
+  reservasPorSku,
+  resumenes,
+  saldoAlConfirmar,
+} from "./selectors";
+import type { PedidoDetalle } from "@/features/pedidos/pedido-data";
+
+export function usePedidos() {
+  const { state } = useStore();
+  return useMemo(() => {
+    const lista = resumenes(state);
+    return {
+      resumenes: lista,
+      borradores: lista.filter((p) => p.estado === "borrador"),
+      pedido: (nro: string | null): PedidoDetalle | undefined =>
+        nro ? state.pedidos[nro] : undefined,
+      total: lista.length,
+    };
+  }, [state]);
+}
+
+export function useStock() {
+  const { state } = useStore();
+  return useMemo(() => {
+    const reservas = reservasPorSku(state);
+    return {
+      reservas,
+      disponible: (skuCodigo: string) => disponibleDe(skuCodigo, reservas),
+      saldoDe: (pedido: PedidoDetalle) => saldoAlConfirmar(pedido, reservas),
+    };
+  }, [state]);
+}
+
+export function useKpis() {
+  const { state } = useStore();
+  return useMemo(() => kpis(state, reservasPorSku(state)), [state]);
+}

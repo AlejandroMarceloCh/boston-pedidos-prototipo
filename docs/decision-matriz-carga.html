@@ -1,0 +1,684 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisión: cómo rediseñar la matriz de carga — Boston Pedidos</title>
+<style>
+  :root {
+    --bg: #F4F1EA;
+    --surface: #FFFFFF;
+    --sunken: #EDE9E0;
+    --ink: #1A1714;
+    --ink-2: #6B6459;
+    --ink-3: #9A9287;
+    --line: #E0DACE;
+    --line-2: #C9C1B3;
+    --indigo: #4F46E5;
+    --indigo-soft: #EEEDFD;
+    --green: #1E7A48;
+    --amber: #B87400;
+    --amber-soft: #FBF0DC;
+    --red: #C0392B;
+    --sans: ui-sans-serif, -apple-system, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+    --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #16150F; --surface: #201E18; --sunken: #2A2721;
+      --ink: #F2EEE4; --ink-2: #A9A296; --ink-3: #7A7367;
+      --line: #322F27; --line-2: #46423A;
+      --indigo: #9A93FF; --indigo-soft: #262445;
+      --green: #5BC98A; --amber: #E0A33C; --amber-soft: #33270F; --red: #E8776A;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #16150F; --surface: #201E18; --sunken: #2A2721;
+    --ink: #F2EEE4; --ink-2: #A9A296; --ink-3: #7A7367;
+    --line: #322F27; --line-2: #46423A;
+    --indigo: #9A93FF; --indigo-soft: #262445;
+    --green: #5BC98A; --amber: #E0A33C; --amber-soft: #33270F; --red: #E8776A;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: var(--sans);
+    line-height: 1.6; margin: 0; padding: 0 20px 100px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 940px; margin: 0 auto; }
+
+  header.top { padding: 56px 0 26px; border-bottom: 1px solid var(--line); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--ink-3); margin-bottom: 10px;
+  }
+  h1 {
+    font-size: clamp(28px, 4.2vw, 38px); line-height: 1.12; letter-spacing: -.025em;
+    font-weight: 600; margin: 0 0 12px; text-wrap: balance;
+  }
+  .lede { font-size: 16.5px; color: var(--ink-2); max-width: 64ch; margin: 0; }
+
+  section { padding-top: 50px; }
+  h2 {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; margin: 0 0 20px; padding-bottom: 10px;
+    border-bottom: 1px solid var(--line);
+  }
+  h3 { font-size: 19px; letter-spacing: -.015em; font-weight: 600; margin: 0 0 8px; }
+  h4 {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; margin: 20px 0 8px;
+  }
+  p { margin: 0 0 14px; max-width: 72ch; }
+  ul, ol { max-width: 72ch; padding-left: 20px; }
+  li { margin-bottom: 6px; }
+  code {
+    font-family: var(--mono); font-size: .88em; background: var(--sunken);
+    padding: 1px 5px; border-radius: 4px;
+  }
+  pre {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.6;
+    background: var(--sunken); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; margin: 0 0 16px;
+  }
+  pre code { background: none; padding: 0; }
+  .muted { color: var(--ink-2); }
+
+  .box {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: 10px; padding: 20px 22px; margin-bottom: 18px;
+  }
+  .box.warn { border-left: 3px solid var(--amber); }
+  .box.key { border-left: 3px solid var(--indigo); }
+
+  table.data { border-collapse: collapse; width: 100%; font-size: 14px; margin-bottom: 16px; }
+  table.data th, table.data td {
+    text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top;
+  }
+  table.data thead th {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 500; background: var(--sunken);
+  }
+  table.data tbody tr:last-child td { border-bottom: 0; }
+  table.data td.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+  .scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+  .scroll table.data { margin-bottom: 0; }
+
+  /* opción */
+  .opt { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 26px; }
+  .opt-head { padding: 20px 22px 16px; border-bottom: 1px solid var(--line); }
+  .opt-head .row { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .tag {
+    font-family: var(--mono); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--ink-3); border: 1px solid var(--line-2); border-radius: 4px; padding: 2px 7px;
+  }
+  .tag.rec { color: var(--indigo); border-color: var(--indigo); }
+  .opt-body { padding: 20px 22px; }
+  .opt-body h4:first-child { margin-top: 0; }
+  .opt-body p:last-child, .opt-body ul:last-child { margin-bottom: 0; }
+  .split { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); }
+  .split > div { padding: 16px 22px; }
+  .split .pro { border-right: 1px solid var(--line); }
+  .split b {
+    display: block; font-family: var(--mono); font-size: 10.5px; letter-spacing: .12em;
+    text-transform: uppercase; font-weight: 500; margin-bottom: 8px;
+  }
+  .split .pro b { color: var(--green); }
+  .split .con b { color: var(--amber); }
+  .split ul { margin: 0; color: var(--ink-2); font-size: 14px; }
+  @media (max-width: 700px) {
+    .split { grid-template-columns: 1fr; }
+    .split .pro { border-right: 0; border-bottom: 1px solid var(--line); }
+  }
+
+  .meta-row {
+    display: flex; gap: 22px; flex-wrap: wrap; padding: 12px 22px;
+    background: var(--sunken); border-top: 1px solid var(--line);
+    font-size: 13px;
+  }
+  .meta-row div { display: flex; flex-direction: column; }
+  .meta-row .k {
+    font-family: var(--mono); font-size: 9.5px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--ink-3);
+  }
+  .meta-row .v { font-weight: 500; }
+
+  .q { counter-reset: q; list-style: none; padding: 0; }
+  .q li {
+    counter-increment: q; position: relative; padding-left: 34px; margin-bottom: 16px;
+  }
+  .q li::before {
+    content: counter(q); position: absolute; left: 0; top: 1px;
+    font-family: var(--mono); font-size: 11px; color: var(--indigo);
+    border: 1px solid var(--indigo); border-radius: 50%;
+    width: 22px; height: 22px; display: grid; place-items: center;
+  }
+  .q strong { display: block; margin-bottom: 2px; }
+  .q span { color: var(--ink-2); font-size: 14px; }
+
+  footer { margin-top: 60px; padding-top: 18px; border-top: 1px solid var(--line); font-size: 12.5px; color: var(--ink-3); }
+  a { color: var(--indigo); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="eyebrow">Boston Pedidos · Documento de decisión · 12 agosto 2026</div>
+  <h1>Cómo rediseñar la matriz de carga color × talla</h1>
+  <p class="lede">
+    Cuatro alternativas para la pantalla donde el vendedor carga cantidades de un artículo.
+    Este documento es autocontenido: incluye todo el contexto de negocio, el comportamiento actual
+    y los criterios, para que alguien sin acceso al repositorio pueda recomendar una opción.
+  </p>
+</header>
+
+<!-- ============================================ -->
+<section>
+  <h2>1 · Contexto</h2>
+
+  <h4>El negocio</h4>
+  <p>
+    Boston es un fabricante peruano de ropa interior y pijamas (marcas BOSTON, SWEET COTTON, CLASSIC)
+    que vende <strong>al por mayor</strong>: sus clientes son distribuidoras, boutiques y retail, no
+    consumidores finales. Los pedidos se toman por vendedores de campo o por teléfono, y se miden
+    en <strong>docenas</strong>, no en unidades sueltas. Los montos típicos van de S/ 100 a S/ 15,000
+    por pedido.
+  </p>
+
+  <h4>El sistema</h4>
+  <p>
+    "Boston Pedidos" es una aplicación web nueva (React 19 + TypeScript + Tailwind) que reemplazaría
+    la toma de pedidos que hoy se hace en el ERP Promec (Progress OpenEdge, interfaz de los 2000) y en
+    hojas de Excel. Está en etapa de <strong>prototipo con datos simulados</strong>: no hay backend todavía.
+    El objetivo inmediato es validar los flujos con vendedores reales antes de construir el servidor.
+  </p>
+
+  <h4>Estructura de los productos</h4>
+  <p>
+    Cada artículo (ej. <code>332</code> · Pijama infantil algodón) existe en varias tallas y varios colores.
+    La combinación artículo + talla + color es un <strong>SKU</strong>, codificado como
+    <code>332</code> + <code>L</code> + <code>HSUR</code> + <code>P</code> → <code>332LHSURP</code>.
+  </p>
+  <ul>
+    <li><strong>Tallas adulto:</strong> S, M, L, XL, XXL (5)</li>
+    <li><strong>Tallas niño:</strong> 2, 4, 6, 8, 10, 12, 14, 16 (8)</li>
+    <li><strong>Colores por artículo:</strong> entre 3 y 6</li>
+  </ul>
+  <p>
+    Esto significa que un artículo infantil de 6 colores tiene <strong>48 SKUs</strong>, y todos
+    pueden cargarse en un mismo pedido. Ese es el problema de fondo: hay que poder capturar
+    hasta 48 cantidades sin que la pantalla se vuelva ilegible.
+  </p>
+
+  <h4>Dónde vive esta pantalla</h4>
+  <p>
+    Es el paso 2 de un asistente de 4 pasos: <strong>Cliente → Ítems → Descuentos → Confirmar</strong>.
+    En el paso de ítems, el vendedor abre un catálogo, elige un artículo y aparece la matriz que
+    estamos discutiendo. Archivo: <code>src/pages/armado-pedido.tsx</code>, componente
+    <code>CatalogoDrawer</code>.
+  </p>
+</section>
+
+<!-- ============================================ -->
+<section>
+  <h2>2 · Cómo funciona hoy</h2>
+
+  <p>
+    Una tabla con <strong>colores en las filas y tallas en las columnas</strong>. Cada celda representa
+    un SKU y contiene tres elementos apilados en unos 40 píxeles de alto:
+  </p>
+
+  <ol>
+    <li><strong>Stock disponible</strong> (stock total menos reservado), como número gris de 9px.</li>
+    <li><strong>"+N en pedido"</strong>, solo si ese SKU ya estaba cargado en el carrito.</li>
+    <li><strong>Un control de tres partes:</strong> botón <code>−</code>, input de texto, botón <code>+</code>.</li>
+  </ol>
+
+  <p>
+    Los botones suman o restan <strong>12 unidades</strong> (una docena) por click; con
+    <code>Shift</code> presionado suman o restan 1. El input está topado al stock disponible.
+    Las celdas sin stock se atenúan al 40% de opacidad.
+  </p>
+
+  <h4>Aspecto real (artículo 332, 4 colores × 8 tallas)</h4>
+  <div class="scroll">
+    <table class="data">
+      <thead>
+        <tr><th>Color</th><th>2</th><th>4</th><th>6</th><th>8</th><th>10</th><th>12</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Celeste <span class="muted">CELE</span></td>
+          <td class="num">178<br><span class="muted">− 0 +</span></td>
+          <td class="num">41<br><span class="muted">− 0 +</span></td>
+          <td class="num">102<br><span class="muted">− 0 +</span></td>
+          <td class="num">163<br><span class="muted">− 0 +</span></td>
+          <td class="num">147<br><span class="muted">− 0 +</span></td>
+          <td class="num">147<br><span class="muted">− 0 +</span></td>
+        </tr>
+        <tr>
+          <td>Rojo <span class="muted">ROJO</span></td>
+          <td class="num">42<br><span class="muted">− 0 +</span></td>
+          <td class="num">103<br><span class="muted">− 0 +</span></td>
+          <td class="num">164<br><span class="muted">− 0 +</span></td>
+          <td class="num">28<br><span class="muted">− 0 +</span></td>
+          <td class="num">12<br><span class="muted">− 0 +</span></td>
+          <td class="num">12<br><span class="muted">− 0 +</span></td>
+        </tr>
+        <tr>
+          <td>Amarillo <span class="muted">AMAR</span></td>
+          <td class="num">117<br><span class="muted">− 0 +</span></td>
+          <td class="num">178<br><span class="muted">− 0 +</span></td>
+          <td class="num">41<br><span class="muted">− 0 +</span></td>
+          <td class="num">102<br><span class="muted">− 0 +</span></td>
+          <td class="num">87<br><span class="muted">− 0 +</span></td>
+          <td class="num">87<br><span class="muted">− 0 +</span></td>
+        </tr>
+        <tr>
+          <td>Verde <span class="muted">VERD</span></td>
+          <td class="num">164<br><span class="muted">− 0 +</span></td>
+          <td class="num">28<br><span class="muted">− 0 +</span></td>
+          <td class="num">88<br><span class="muted">− 0 +</span></td>
+          <td class="num">149<br><span class="muted">− 0 +</span></td>
+          <td class="num">133<br><span class="muted">− 0 +</span></td>
+          <td class="num">133<br><span class="muted">− 0 +</span></td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p class="muted" style="font-size:13.5px">
+    El número grande es stock; el <code>0</code> entre los botones es la cantidad pedida.
+    Faltan 2 columnas más a la derecha (tallas 14 y 16), fuera del ancho visible.
+  </p>
+
+  <h4>Código de una celda (simplificado)</h4>
+<pre><code>const avail = sku.stock - sku.reservado;
+const qty   = cants[sku.codigo] ?? 0;
+
+&lt;td&gt;
+  &lt;p&gt;{avail}&lt;/p&gt;                      {/* stock, 9px gris */}
+  {yaEnPedido &gt; 0 && &lt;p&gt;+{yaEnPedido} en pedido&lt;/p&gt;}
+  &lt;div&gt;
+    &lt;button onClick={e =&gt; add(e.shiftKey ? -1 : -12)}&gt;−&lt;/button&gt;
+    &lt;input value={qty || ""} placeholder="0" /&gt;
+    &lt;button onClick={e =&gt; add(e.shiftKey ? 1 : 12)}&gt;+&lt;/button&gt;
+  &lt;/div&gt;
+&lt;/td&gt;</code></pre>
+
+  <h4>Problemas identificados</h4>
+  <table class="data">
+    <thead>
+      <tr><th style="width:30%">Problema</th><th>Detalle</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Jerarquía invertida</strong></td>
+        <td>El stock (dato de consulta) es lo más prominente de la celda. La cantidad pedida (la acción real) es lo menos visible.</td>
+      </tr>
+      <tr>
+        <td><strong>Densidad de controles</strong></td>
+        <td>3 controles por celda × hasta 48 SKUs = hasta 144 elementos interactivos en una pantalla.</td>
+      </tr>
+      <tr>
+        <td><strong>Unidad ambigua</strong></td>
+        <td>La interfaz dice "cargar docenas" pero el input muestra unidades (12, 24, 36). Dos sistemas de medida a la vez.</td>
+      </tr>
+      <tr>
+        <td><strong>Atajo invisible</strong></td>
+        <td>Shift+click para mover de a 1 unidad solo está documentado en el <code>title</code> del botón.</td>
+      </tr>
+      <tr>
+        <td><strong>Sin totales</strong></td>
+        <td>No hay subtotal por color, por talla ni general. Para saber cuánto se lleva hay que cerrar el diálogo.</td>
+      </tr>
+      <tr>
+        <td><strong>Scroll horizontal</strong></td>
+        <td>Con 8 tallas infantiles, 2 columnas quedan fuera de pantalla sin indicación clara.</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============================================ -->
+<section>
+  <h2>3 · Las cuatro opciones</h2>
+
+  <!-- A -->
+  <article class="opt">
+    <div class="opt-head">
+      <div class="row">
+        <h3>Opción A · Hoja de cálculo</h3>
+        <span class="tag">Mantiene la matriz</span>
+      </div>
+      <p class="muted" style="margin:6px 0 0">
+        Misma estructura color × talla, pero un solo control por celda.
+      </p>
+    </div>
+    <div class="opt-body">
+      <h4>Cómo funciona</h4>
+      <ul>
+        <li>Cada celda es <strong>un único input</strong>. Se elimina el par de botones <code>−</code>/<code>+</code>.</li>
+        <li>El stock deja de ser un número y pasa a ser una <strong>barra fina de 3px</strong> sobre el input, cuyo largo es proporcional al disponible y cuyo color avisa cuando está bajo.</li>
+        <li>Se agrega una <strong>columna de totales por color</strong> a la derecha y una <strong>fila de totales por talla</strong> abajo.</li>
+        <li>Navegación con <code>Tab</code> y flechas entre celdas, como en Excel.</li>
+        <li>Las celdas con cantidad se resaltan con fondo y borde de color.</li>
+        <li>Barra inferior fija con docenas, unidades e importe acumulado.</li>
+      </ul>
+
+      <h4>Ejemplo del resultado</h4>
+      <div class="scroll">
+        <table class="data">
+          <thead>
+            <tr><th>Color</th><th>2</th><th>4</th><th>6</th><th>8</th><th>10</th><th>12</th><th>Total</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Celeste</td><td class="num">—</td><td class="num">—</td><td class="num">2</td><td class="num">3</td><td class="num">2</td><td class="num">—</td><td class="num"><strong>7</strong></td></tr>
+            <tr><td>Rojo</td><td class="num">—</td><td class="num">2</td><td class="num">4</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num"><strong>6</strong></td></tr>
+            <tr><td>Amarillo</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>
+            <tr><td>Verde</td><td class="num">3</td><td class="num">—</td><td class="num">2</td><td class="num">2</td><td class="num">—</td><td class="num">—</td><td class="num"><strong>7</strong></td></tr>
+            <tr style="background:var(--sunken)"><td><strong>Docenas por talla</strong></td><td class="num">3</td><td class="num">2</td><td class="num">8</td><td class="num">5</td><td class="num">2</td><td class="num">—</td><td class="num"><strong>20</strong></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="muted" style="font-size:13.5px">Valores en docenas. Las celdas vacías muestran un punto tenue en lugar de "0".</p>
+    </div>
+    <div class="split">
+      <div class="pro">
+        <b>A favor</b>
+        <ul>
+          <li>Reduce de 3 controles a 1 por SKU: −66% de elementos interactivos.</li>
+          <li>Aprovecha un modelo mental que los vendedores ya tienen del Excel.</li>
+          <li>Totales por ambos ejes siempre visibles.</li>
+          <li>Preserva la comparación visual entre colores y entre tallas.</li>
+          <li>El stock se lee por longitud de barra, más rápido que leer números.</li>
+        </ul>
+      </div>
+      <div class="con">
+        <b>En contra</b>
+        <ul>
+          <li>Sin botones, en móvil hay que abrir el teclado numérico para cada celda.</li>
+          <li>El scroll horizontal persiste con 8 tallas.</li>
+          <li>Obliga a definir la unidad (docenas o unidades) de forma explícita.</li>
+          <li>Las barras de stock añaden ruido visual si no se calibran bien.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div><span class="k">Esfuerzo</span><span class="v">Medio · 1 día</span></div>
+      <div><span class="k">Riesgo</span><span class="v">Bajo</span></div>
+      <div><span class="k">Móvil</span><span class="v">Regular</span></div>
+      <div><span class="k">Supuestos sin validar</span><span class="v">Ninguno</span></div>
+    </div>
+  </article>
+
+  <!-- B -->
+  <article class="opt">
+    <div class="opt-head">
+      <div class="row">
+        <h3>Opción B · Curva de tallas</h3>
+        <span class="tag">Abandona la matriz</span>
+      </div>
+      <p class="muted" style="margin:6px 0 0">
+        Se pide un volumen por color y el sistema lo reparte entre las tallas.
+      </p>
+    </div>
+    <div class="opt-body">
+      <h4>Cómo funciona</h4>
+      <p>
+        En confección al por mayor es habitual pedir "20 docenas del rojo" y que la fábrica reparta
+        según una <strong>curva de tallas</strong>: un patrón de proporciones que refleja cómo se vende
+        cada talla. Las tallas del medio se venden más que los extremos.
+      </p>
+      <ul>
+        <li>El vendedor elige una curva (estándar, centrada, plana) y escribe <strong>docenas por color</strong>.</li>
+        <li>El sistema reparte con redondeo por mayor resto, garantizando que la suma sea exacta.</li>
+        <li>El desglose por talla se muestra en vivo y se puede ajustar a mano si algo no cuadra.</li>
+        <li>Un control por color en lugar de ocho.</li>
+      </ul>
+
+      <h4>Ejemplo: 20 docenas con curva estándar 1·2·3·3·2·1</h4>
+      <table class="data">
+        <thead>
+          <tr><th>Talla</th><th>2</th><th>4</th><th>6</th><th>8</th><th>10</th><th>12</th><th>Total</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Peso de la curva</td><td class="num">1</td><td class="num">2</td><td class="num">3</td><td class="num">3</td><td class="num">2</td><td class="num">1</td><td class="num">12</td></tr>
+          <tr><td><strong>Docenas asignadas</strong></td><td class="num">2</td><td class="num">3</td><td class="num">5</td><td class="num">5</td><td class="num">3</td><td class="num">2</td><td class="num"><strong>20</strong></td></tr>
+        </tbody>
+      </table>
+      <p>
+        Para un pedido de 4 colores, esto baja la captura de <strong>32 decisiones a 4</strong>.
+      </p>
+    </div>
+    <div class="split">
+      <div class="pro">
+        <b>A favor</b>
+        <ul>
+          <li>Reducción drástica del trabajo de captura.</li>
+          <li>Coincide con el lenguaje real del negocio mayorista.</li>
+          <li>Funciona perfecto en móvil.</li>
+          <li>Reduce errores de tipeo por volumen.</li>
+        </ul>
+      </div>
+      <div class="con">
+        <b>En contra</b>
+        <ul>
+          <li><strong>Depende de un supuesto no verificado:</strong> que Boston tenga curvas definidas y que los vendedores piensen así.</li>
+          <li>El reparto puede exceder el stock de una talla puntual y necesita una regla de resolución.</li>
+          <li>No puede ser el único modo: siempre hará falta ajuste manual.</li>
+          <li>Si las curvas varían por cliente o temporada, hay que modelarlas y mantenerlas.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div><span class="k">Esfuerzo</span><span class="v">Alto · 2-3 días</span></div>
+      <div><span class="k">Riesgo</span><span class="v">Alto</span></div>
+      <div><span class="k">Móvil</span><span class="v">Excelente</span></div>
+      <div><span class="k">Supuestos sin validar</span><span class="v">Existencia de curvas</span></div>
+    </div>
+  </article>
+
+  <!-- C -->
+  <article class="opt">
+    <div class="opt-head">
+      <div class="row">
+        <h3>Opción C · Un color a la vez</h3>
+        <span class="tag">Abandona la matriz</span>
+      </div>
+      <p class="muted" style="margin:6px 0 0">
+        Lista de colores a la izquierda, tallas del color activo a la derecha.
+      </p>
+    </div>
+    <div class="opt-body">
+      <h4>Cómo funciona</h4>
+      <ul>
+        <li>Panel izquierdo: los colores del artículo, cada uno con su total cargado.</li>
+        <li>Panel derecho: una tarjeta por talla, con espacio suficiente para mostrar stock sin apretarse.</li>
+        <li>Se descompone el problema: en lugar de 48 celdas simultáneas, son 6-8 campos por vez.</li>
+        <li>Sin scroll horizontal en ningún ancho de pantalla.</li>
+      </ul>
+      <p>
+        Es la traducción directa de "no entiendo la matriz": se elimina la dimensión doble y se
+        recorre una dimensión a la vez.
+      </p>
+    </div>
+    <div class="split">
+      <div class="pro">
+        <b>A favor</b>
+        <ul>
+          <li>La más fácil de entender sin explicación previa.</li>
+          <li>Cabe en cualquier pantalla, incluido móvil.</li>
+          <li>Cada talla puede mostrar stock, precio y alertas cómodamente.</li>
+          <li>El cambio más barato de implementar.</li>
+        </ul>
+      </div>
+      <div class="con">
+        <b>En contra</b>
+        <ul>
+          <li><strong>Se pierde la comparación entre colores</strong>, que es parte del valor de la matriz.</li>
+          <li>Cargar 6 colores exige 6 navegaciones.</li>
+          <li>Más lento para el usuario experto que ya domina la grilla.</li>
+          <li>Es fácil olvidarse de un color, porque no todos están a la vista.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div><span class="k">Esfuerzo</span><span class="v">Bajo · medio día</span></div>
+      <div><span class="k">Riesgo</span><span class="v">Bajo</span></div>
+      <div><span class="k">Móvil</span><span class="v">Excelente</span></div>
+      <div><span class="k">Supuestos sin validar</span><span class="v">Ninguno</span></div>
+    </div>
+  </article>
+
+  <!-- D -->
+  <article class="opt">
+    <div class="opt-head">
+      <div class="row">
+        <h3>Opción D · Carga por texto</h3>
+        <span class="tag">Complemento</span>
+      </div>
+      <p class="muted" style="margin:6px 0 0">
+        Una línea de comando para quien ya se sabe el catálogo.
+      </p>
+    </div>
+    <div class="opt-body">
+      <h4>Cómo funciona</h4>
+      <p>
+        El vendedor escribe <code>rojo 6 x3</code> y Enter: 3 docenas de talla 6 en rojo. El sistema
+        parsea, valida contra stock y agrega la línea. Pensado para el vendedor que toma el pedido
+        por teléfono mientras el cliente dicta.
+      </p>
+      <p>
+        <strong>No reemplaza a ninguna de las anteriores</strong>: es una vía rápida adicional que
+        convive con A, B o C.
+      </p>
+    </div>
+    <div class="split">
+      <div class="pro">
+        <b>A favor</b>
+        <ul>
+          <li>La forma más rápida posible para un usuario experto.</li>
+          <li>Cero uso del mouse.</li>
+          <li>Compatible con cualquiera de las otras opciones.</li>
+        </ul>
+      </div>
+      <div class="con">
+        <b>En contra</b>
+        <ul>
+          <li>Inservible para quien no memorizó el catálogo.</li>
+          <li>Parsear texto libre genera casos ambiguos que hay que manejar.</li>
+          <li>Requiere que ya exista otra forma de cargar, así que nunca es la primera inversión.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div><span class="k">Esfuerzo</span><span class="v">Medio · 1 día</span></div>
+      <div><span class="k">Riesgo</span><span class="v">Medio</span></div>
+      <div><span class="k">Móvil</span><span class="v">Malo</span></div>
+      <div><span class="k">Supuestos sin validar</span><span class="v">Vendedores expertos</span></div>
+    </div>
+  </article>
+</section>
+
+<!-- ============================================ -->
+<section>
+  <h2>4 · Comparación</h2>
+  <div class="scroll">
+    <table class="data">
+      <thead>
+        <tr>
+          <th>Criterio</th>
+          <th>A · Hoja</th>
+          <th>B · Curva</th>
+          <th>C · Un color</th>
+          <th>D · Texto</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Controles en pantalla (48 SKUs)</td><td class="num">48</td><td class="num">6</td><td class="num">8</td><td class="num">1</td></tr>
+        <tr><td>Comparar colores entre sí</td><td>Sí</td><td>Sí</td><td>No</td><td>No</td></tr>
+        <tr><td>Comparar tallas entre sí</td><td>Sí</td><td>Parcial</td><td>Sí</td><td>No</td></tr>
+        <tr><td>Usable en móvil</td><td>Regular</td><td>Excelente</td><td>Excelente</td><td>Malo</td></tr>
+        <tr><td>Curva de aprendizaje</td><td>Baja</td><td>Media</td><td>Muy baja</td><td>Alta</td></tr>
+        <tr><td>Velocidad para experto</td><td>Alta</td><td>Muy alta</td><td>Media</td><td>Muy alta</td></tr>
+        <tr><td>Esfuerzo de desarrollo</td><td>Medio</td><td>Alto</td><td>Bajo</td><td>Medio</td></tr>
+        <tr><td>Riesgo de decisión equivocada</td><td>Bajo</td><td>Alto</td><td>Bajo</td><td>Medio</td></tr>
+        <tr><td>Puede convivir con las otras</td><td>Base</td><td>Sobre A</td><td>Alternativa a A</td><td>Sobre cualquiera</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<section>
+  <h2>5 · Restricciones y datos duros</h2>
+  <div class="box">
+    <ul style="margin:0">
+      <li><strong>Etapa:</strong> prototipo con datos simulados, sin backend. El costo de equivocarse ahora es bajo; el de equivocarse después de construir el backend es alto.</li>
+      <li><strong>Usuarios:</strong> vendedores de campo de Boston. Cantidad exacta no confirmada; se estima menos de 10.</li>
+      <li><strong>Dispositivo:</strong> no confirmado. El sistema se diseñó pensando en escritorio, pero "vendedor de campo" sugiere que el móvil puede importar. <em>Este dato no está validado y afecta directamente la decisión.</em></li>
+      <li><strong>Competencia interna:</strong> hoy estos pedidos se cargan en Promec (ERP de interfaz antigua) o en Excel. Cualquier opción es mejor que el estado actual; el riesgo real es construir algo que los vendedores no adopten.</li>
+      <li><strong>Validación pendiente:</strong> hay sesiones de entrevistas planificadas con vendedores (documento <code>P7-guion-validacion-asunciones.md</code>) que aún no se ejecutaron.</li>
+      <li><strong>Tamaño típico de pedido:</strong> según los datos simulados, entre 1 y 3 artículos distintos y entre 12 y 480 unidades por pedido.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============================================ -->
+<section>
+  <h2>6 · Preguntas abiertas</h2>
+  <p>Estas respuestas cambiarían la recomendación. Ninguna está confirmada todavía:</p>
+  <ol class="q">
+    <li>
+      <strong>¿Los vendedores piden en docenas o en unidades?</strong>
+      <span>Si es en docenas, toda la interfaz debería hablar en docenas y no mostrar unidades hasta el resumen final.</span>
+    </li>
+    <li>
+      <strong>¿Existen curvas de talla estándar en Boston?</strong>
+      <span>Es el supuesto del que depende por completo la opción B. Si no existen, B queda descartada.</span>
+    </li>
+    <li>
+      <strong>¿Se carga el pedido en escritorio o en móvil?</strong>
+      <span>Si el móvil es el escenario principal, A pierde mucho y C o B ganan.</span>
+    </li>
+    <li>
+      <strong>¿El vendedor arma el pedido frente al cliente o después?</strong>
+      <span>Frente al cliente favorece velocidad y pocos controles; después favorece precisión y visión completa.</span>
+    </li>
+    <li>
+      <strong>¿Cuántos colores por pedido se cargan en promedio?</strong>
+      <span>Si es 1 o 2, la matriz completa es innecesaria y C basta. Si son 5 o 6, la comparación entre colores importa.</span>
+    </li>
+  </ol>
+</section>
+
+<!-- ============================================ -->
+<section>
+  <h2>7 · Qué se pide decidir</h2>
+  <div class="box key">
+    <p style="margin-bottom:10px">
+      <strong>Recomendar una opción (o una combinación) y justificarla.</strong>
+    </p>
+    <p class="muted" style="margin-bottom:10px">
+      Se valora especialmente: qué hacer dado que las preguntas de la sección 6 siguen sin respuesta,
+      y si conviene decidir ahora o esperar a las entrevistas con vendedores.
+    </p>
+    <p class="muted" style="margin-bottom:0">
+      Nota: quien escribió este documento se inclina por <strong>A como base, con B agregada
+      después si las entrevistas confirman que las curvas existen</strong>, y considera C
+      descartable salvo que el móvil resulte prioritario. Esa inclinación no debe tomarse como
+      restricción: se busca una evaluación independiente que puede contradecirla.
+    </p>
+  </div>
+</section>
+
+<footer>
+  Boston Pedidos · <code>docs/decision-matriz-carga.html</code> · Prototipo frontend, agosto 2026.<br>
+  Mockups interactivos de las cuatro opciones: disponibles por separado como artifact.
+</footer>
+
+</div>
+</body>
+</html>

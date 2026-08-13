@@ -1,0 +1,55 @@
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+.coverage.*
+
+# ===== Node =====
+node_modules/
+dist/
+dist-ssr/
+*.local
+.vite/
+*.tsbuildinfo
+
+# ===== Env / secrets =====
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# ===== DB =====
+*.sqlite
+*.db
+
+# ===== Editor / OS =====
+.vscode/
+.idea/
+.DS_Store
+*.swp
+*.swo
+*~
+
+# ===== Docker =====
+boston_pedidos_data/
+
+# ===== Logs =====
+*.log
+logs/
+
+# ===== macOS AppleDouble =====
+._*
+.AppleDouble
