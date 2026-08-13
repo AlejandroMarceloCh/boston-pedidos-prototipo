@@ -107,10 +107,10 @@ flowchart TD
     D --> E["Matriz color × talla<br/>una celda por SKU"]
     E --> F[Escribir docenas<br/>en las celdas]
 
-    F --> G{"¿Docenas dentro del<br/>stock disponible?"}
-    G -->|No| H[Se topa al máximo<br/>que hay en stock]
-    H --> F
-    G -->|Sí| I[Suma a totales<br/>por color y por talla]
+    F --> G{"¿Excede el<br/>stock disponible?"}
+    G -->|Sí| H[Se registra igual:<br/>el excedente irá a solicitud]
+    H --> I
+    G -->|No| I[Suma a totales<br/>por color y por talla]
 
     I --> J{¿Falta<br/>otro artículo?}
     J -->|Sí| B
@@ -129,7 +129,7 @@ flowchart TD
 ```
 
 **Para validar:**
-- Se carga en **docenas**. ¿Alguna vez se piden unidades sueltas? Hoy no se puede.
+- Se carga en **docenas** en la matriz y en unidades al ajustar cada línea.
 - El **precio es editable por línea** en el paso 2. ¿Quién puede hacerlo y hasta dónde?
 - El stock que se muestra es *disponible* = stock − reservado. ¿Es el número que el vendedor espera ver?
 
@@ -147,11 +147,17 @@ stateDiagram-v2
     Confirmado --> Facturado: se emite factura
     Confirmado --> Anulado: cancela el cliente<br/>(libera stock)
 
-    Facturado --> Entregado: recibe el cliente
-    Facturado --> Anulado: anulación con factura emitida
+    Facturado --> Entregado: recibe el cliente<br/>(guía de remisión)
+    Facturado --> Anulado: anulación<br/>(nota de crédito)
 
     Entregado --> [*]
     Anulado --> [*]
+
+    note left of Entregado
+        Un entregado ya no se anula:
+        la mercadería está con el cliente.
+        Entregar de menos deja SALDO.
+    end note
 
     note right of Confirmado
         Puede quedar CON SALDO:

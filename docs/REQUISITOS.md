@@ -19,13 +19,19 @@ Las citas entre comillas son textuales de la fuente A salvo indicación.
 
 `✅ Hecho` · `🟡 Parcial` · `❌ Falta` · `⛔ Bloqueado` (depende de un dato o decisión que no existe)
 
+> **Cómo leer esta columna.** Una auditoría externa del 13 de agosto encontró 15 estados mal
+> declarados: la mayoría marcados ✅ porque *la lógica existía y estaba testeada*, mientras el
+> flujo real de la aplicación no llegaba a ejecutarla. El criterio ahora es más estricto: un
+> requisito solo es ✅ si se puede recorrer **en la interfaz, de punta a punta**. Que un test
+> del reducer pase no alcanza.
+
 ### Resumen
 
 La columna «Falta» agrupa ❌ y ⛔.
 
 | Área | Hecho | Parcial | Falta |
 |---|---|---|---|
-| Catálogo y stock | 4 | 1 | 1 |
+| Catálogo y stock | 3 | 2 | 1 |
 | Toma de pedidos | 7 | 1 | 1 |
 | Pedido vs solicitud | 4 | 0 | 1 |
 | Descuentos y beneficios | 3 | 2 | 5 |
@@ -33,7 +39,7 @@ La columna «Falta» agrupa ❌ y ⛔.
 | Cliente y crédito | 1 | 1 | 4 |
 | Avisos y trazabilidad | 3 | 2 | 0 |
 | No funcionales | 1 | 1 | 4 |
-| **Total** | **28** | **9** | **16** |
+| **Total** | **27** | **10** | **16** |
 
 ---
 
@@ -69,7 +75,7 @@ Y el problema de fondo, que es de stock:
 
 | ID | Requisito | Estado |
 |---|---|---|
-| **RF-01** | Mostrar el stock **disponible en el momento**, no el de la mañana. *"necesitas algo que se alimente del stock actual"* | ✅ |
+| **RF-01** | Mostrar el stock **disponible en el momento**, no el de la mañana. *"necesitas algo que se alimente del stock actual"* | 🟡 Se alimenta del estado local y descuenta lo comprometido. **No ve a los otros vendedores**: eso exige backend (RF-05, RF-06) |
 | **RF-02** | El stock se descuenta **al confirmar el pedido**, no al facturar. *"hoy nuestro stock se ve afectado cuando se factura. No cuando hay un pedido. ¿Debería ser así? No. Debería ser bajo el pedido."* | ✅ Reserva al confirmar y **vencimiento real**: pasadas las horas de reserva el stock se libera solo, y el detalle lo avisa. El plazo (48 h) sigue sin confirmarse — pregunta 10 — pero es una constante |
 | **RF-03** | Anular un pedido devuelve el stock. | ✅ |
 | **RF-04** | Buscar artículos por código, nombre, línea o género. | ✅ Corregido: el género no estaba en la búsqueda del catálogo, y en el asistente se comparaba contra el código crudo ("dam"), no contra la etiqueta |
@@ -106,7 +112,7 @@ El ejemplo: el cliente quiere 500 y hay 20 → *"quiero las 20, y esas 480 es un
 | ID | Requisito | Estado |
 |---|---|---|
 | **RF-20** | Partir el requerimiento en dos documentos: **pedido** (lo que hay) y **solicitud/prepedido** (lo que falta). | ✅ Al confirmar; la solicitud lleva el número del pedido con sufijo `-S` y quedan vinculadas |
-| **RF-21** | La solicitud se aprueba o se rechaza explícitamente. *"o lo atiendo o no lo atiendo"* | ✅ Desde el detalle, con rastro en el historial |
+| **RF-21** | La solicitud se aprueba o se rechaza explícitamente. *"o lo atiendo o no lo atiendo"* | ✅ Aprobar pide fecha comprometida y habilita "Atender con stock actual", que crea el pedido que la cumple y reserva. Rechazar la saca de la demanda |
 | **RF-22** | El cliente puede originar solicitudes, incluso **sin ver el stock**. *"en el término de la solicitud ni siquiera tenga que mirar nuestros stocks el cliente"* | ❌ El modelo ya lo soporta; falta el acceso del cliente, que necesita backend |
 | **RF-23** | Un pedido no debe comprometer lo que no existe. *"nosotros nos comprometemos aun por lo que no tenemos"* — política que la reunión califica de errada. | ✅ Ahora se puede **pedir** de más, pero el pedido confirmado solo contiene lo atendible: el resto va a la solicitud. Se registra la demanda sin comprometerla |
 | **RF-24** | La proyección de demanda debe alimentarse de pedidos reales, no inflados. *"¿qué pasa si el pedido te inflan y luego te devuelven la mercadería? Te engañas tú solo."* Conecta con producción: *"tiene que ver con temas de producción"* | ✅ Pedidos y solicitudes separados en KPIs y listados, más el informe de **demanda no atendida** agrupado por artículo. Una solicitud rechazada no empuja producción |
@@ -128,7 +134,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | **RF-32** | **El beneficio se calcula sobre lo atendible, no sobre lo solicitado.** *"antes, para acceder a un beneficio, te pedían lo que no teníamos. Sabían que no había."* · *"ahora se está diciendo sobre el stock que tenemos"* · *"¿Qué es lo real que ha comprado?"* | ✅ `lib/pedido-calc.ts` recorta cada línea a `min(pedido, stock)`; las docenas y el subtotal salen de lo atendible |
 | **RF-33** | **Bonificaciones**, mecanismo distinto del descuento. *"tanto en formas de pago como en mecanismos de bonificación"* · *"esta es la bonificación que te toca"* | ❌ Falta definir la mecánica (¿producto gratis?) |
 | **RF-34** | La **forma de pago** influye en el esquema comercial. | ❌ Se guarda `condicion` pero no afecta ningún cálculo |
-| **RF-35** | Condiciones de venta reales: **E/C/L/O/D** = contra entrega, contado, letras, **obsequio**, **donación** (fuente C). | 🟡 Las cinco se eligen y se guardan; obsequio y donación quedan marcadas como "sin cobro". **Cómo se documentan** es pregunta para Finanzas |
+| **RF-35** | Condiciones de venta reales: **E/C/L/O/D** = contra entrega, contado, letras, **obsequio**, **donación** (fuente C). | 🟡 Las cinco se eligen, se guardan y se aplican: obsequio y donación **no generan cobro ni IGV**. **Cómo se documentan** ante SUNAT sigue siendo pregunta para Finanzas |
 | **RF-36** | Descuento diferenciado por **tipo de cliente** (distribuidor vs minorista). | ❌ La interfaz rotula "Distribuidor · descuento adicional" pero el cálculo no lo usa |
 | **RF-37** | Autorización para descuentos manuales por encima del tope, con registro de quién autoriza. | 🟡 Pide confirmación en pantalla; no registra autorizante |
 | **RF-38** | El **saldo conserva el descuento de su campaña original**. *"me tienes que respetar el descuento de esa vez"*, siempre que *"el error sea de la empresa"*. | ❌ |
@@ -140,12 +146,12 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 
 | ID | Requisito | Estado |
 |---|---|---|
-| **RF-40** | Emitir factura al pedido confirmado. | 🟡 Genera correlativo, sin documento real |
-| **RF-41** | **Facturación partida entre varios RUC.** *"de esas 100,000, 45,000 me las facturas a mí, 25,000 a ella"* | ✅ Partidas con RUC propio; una factura por partida y un evento por cada una |
+| **RF-40** | Emitir factura al pedido confirmado. | 🟡 Correlativo por serie, uno por partida, con evento por cada RUC. **No emite documento real** ni se comunica con SUNAT: eso es backend |
+| **RF-41** | **Facturación partida entre varios RUC.** *"de esas 100,000, 45,000 me las facturas a mí, 25,000 a ella"* | ✅ Partidas con **cantidad por SKU**, no SKU completos: el mismo artículo se reparte entre dos RUC. No se confirma si el reparto no cuadra |
 | **RF-42** | **Entrega en varios destinos.** *"y quiero que esa me la entregues en ese sitio, y en ese otro sitio"* | ✅ Cada partida tiene su dirección de entrega |
-| **RF-43** | **Guía de remisión** como documento separado de la factura. *"no es con la guía, es con la carga del almacén. Guía, factura, guía, factura."* | ✅ Se emite al entregar, con correlativo propio (T001) y una por destino |
-| **RF-44** | Nota de crédito al anular un pedido facturado. | ✅ Una por factura emitida (FC01). Anular un pedido solo confirmado no emite nada |
-| **RF-45** | Registrar el **saldo** (lo no atendido) y su causa: responsabilidad de Boston o falta de insumo. | ✅ `causaSaldo` (`insumo` / `boston`), reclasificable desde el detalle y con aviso cuando vence la fecha comprometida |
+| **RF-43** | **Guía de remisión** como documento separado de la factura. *"no es con la guía, es con la carga del almacén. Guía, factura, guía, factura."* | ✅ Se emite al entregar, con correlativo propio (serie T001, independiente del de facturas) y una por destino |
+| **RF-44** | Nota de crédito al anular un pedido facturado. | ✅ Una por factura emitida (serie FC01). Alcanzable desde el detalle de un pedido facturado. Anular uno solo confirmado no emite nada |
+| **RF-45** | Registrar el **saldo** (lo no atendido) y su causa: responsabilidad de Boston o falta de insumo. | ✅ Entrega parcial registra el faltante como saldo con causa `boston`; el excedente por falta de stock va a solicitud (RF-20). Reclasificable desde el detalle |
 
 ---
 
@@ -167,7 +173,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | ID | Requisito | Estado |
 |---|---|---|
 | **RF-60** | Historial de cada pedido con sus cambios de estado. | ✅ |
-| **RF-61** | Estados: borrador → confirmado → facturado → entregado, más anulado. | ✅ |
+| **RF-61** | Estados: borrador → confirmado → facturado → entregado, más anulado. | ✅ Con **máquina de estados**: el reducer valida el origen de cada transición. No se puede facturar un borrador, entregar sin facturar, reconfirmar ni anular un entregado |
 | **RF-62** | **Confirmación automática al cliente** al cerrar el pedido. *"automáticamente uno se refleje acá y otro se dispara al cliente para que te lo confirme"* — hoy el cliente se entera cuando llega la mercadería. | 🟡 Abre WhatsApp con el texto y el número, y **registra que se envió**. El disparo **automático** necesita WhatsApp Business API y backend |
 | **RF-63** | El cliente puede aceptar o corregir el pedido antes de que se despache. | 🟡 Se registra a mano si aceptó o pidió correcciones, con rastro. El canal donde el cliente responde solo necesita backend |
 | **RF-64** | Reportes de ventas y almacén. *"se tiene que generar información de las ventas, del almacén, de todo"* | ✅ Pantalla de Informes: ventas por cliente y por condición, stock crítico y demanda no atendida |
@@ -182,7 +188,7 @@ Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B 
 | **RNF-02** | **Seguridad**, con revisión ofensiva antes de exponerlo. *"Hagan ethical hacking a todos sus códigos (…) la misma tienda online tiene 35 mil intentos"* | ❌ Pendiente hasta que haya backend y URL pública |
 | **RNF-03** | Accesible desde fuera de la oficina. *"necesitamos una URL para salir a la calle"* | ❌ |
 | **RNF-04** | Robustez. *"que funcione robustamente"* | 🟡 53 tests sobre cálculo, transiciones, stock, split, partidas y documentos. Sin tests de interfaz (no hay jsdom ni testing-library) |
-| **RNF-05** | Los totales del sistema deben ser exactos y consistentes en toda la aplicación. | ✅ Corregido: había **cuatro** sumas fuera de `pedido-calc.ts` que usaban lo solicitado mientras el subtotal mostrado salía de lo atendible. Hoy todas las pantallas pintan el desglose del cálculo central, con test de invariante |
+| **RNF-05** | Los totales del sistema deben ser exactos y consistentes en toda la aplicación. | ✅ Un solo módulo de cálculo y **una sola política de redondeo**: el precio se normaliza a céntimos al entrar y el subtotal es la suma de los importes por línea ya redondeados. `subtotal − descuento + IGV` es exactamente el total, con test |
 | **RNF-06** | Debe ser más rápido que el cuaderno. *"eso ya lo hago en el cuaderno más rápido"* es una red flag declarada en C. | ❌ Sin medir; se cronometra en P7 |
 
 ---
