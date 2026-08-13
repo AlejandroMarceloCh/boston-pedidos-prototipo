@@ -128,7 +128,10 @@ El pedido no tiene campo de fecha comprometida. Sin eso no se puede medir esa ca
 
 ### 3.1 El descuento debe calcularse sobre lo atendible, no sobre lo solicitado
 
-**Este es un defecto activo del prototipo, no solo una funcionalidad faltante.**
+> **Estado: corregido.** Cuando se escribió este documento era un defecto activo. Hoy
+> `lib/pedido-calc.ts` recorta cada línea a `min(solicitado, stock)` y tanto las docenas
+> como el subtotal salen de lo atendible. Se deja el análisis porque explica *por qué* la
+> regla es esa.
 
 > *"antes (…) a veces para acceder a un beneficio, te pedían lo que no teníamos. (…) Sabían
 > que no había."*
@@ -136,13 +139,10 @@ El pedido no tiene campo de fecha comprometida. Sin eso no se puede medir esa ca
 > stock que tenemos**."*
 > *"¿Qué beneficios sobre el stock? ¿Qué es lo real que ha comprado?"*
 
-Hoy `calcularTotales()` suma **todas** las unidades del pedido para determinar el nivel de
-descuento por volumen, incluidas las que quedarán en saldo por falta de stock. Un cliente
-puede inflar el pedido con SKUs agotados, subir de nivel y recibir solo lo disponible con un
-descuento que no le corresponde — que es literalmente el abuso que dicen haber eliminado.
-
-**Corrección:** el nivel de descuento debe calcularse sobre las docenas **efectivamente
-atendibles**.
+El riesgo que se corrigió: si `calcularTotales()` sumara **todas** las unidades del pedido
+para determinar el nivel, un cliente podría inflar el pedido con SKUs agotados, subir de
+nivel y recibir solo lo disponible con un descuento que no le corresponde — literalmente el
+abuso que dicen haber eliminado.
 
 ### 3.2 Bonificaciones
 
@@ -239,9 +239,10 @@ el pedido ya estaba facturado — caso que el drawer sí permite.
 
 Siguiendo el propio criterio de la reunión — *"hoy lo que tiene que mirar es el almacén"*:
 
-1. **Descuento sobre lo atendible** (§3.1). Es un defecto activo y se corrige en una función.
+1. ~~Descuento sobre lo atendible (§3.1)~~ — **hecho**.
 2. **Pedido vs Solicitud** (§2.1). Es el cambio de modelo que ordena todo lo demás; conviene
-   decidirlo antes de construir backend.
+   decidirlo antes de construir backend. Se volvió más urgente: como el sistema impide pedir
+   más de lo que hay, la demanda no atendible hoy **no se registra en ninguna parte**.
 3. **Fecha de entrega comprometida** (§2.6), porque define cuándo un saldo es culpa de Boston
    y si corresponde respetarle el descuento viejo (§3.5).
 4. **Multi-destino y facturación partida** (§4.1, §4.2), que cambian la forma del pedido.

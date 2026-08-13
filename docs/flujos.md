@@ -235,10 +235,12 @@ flowchart TD
 
 Estos flujos describen el **prototipo**, no un sistema en producción:
 
-- No hay backend: nada se guarda. Al recargar la página se pierde todo.
-- El login no valida credenciales.
+- **No hay backend.** El estado vive en el navegador (`localStorage`): los pedidos que se
+  crean sobreviven a recargar la página, pero no salen de esa máquina ni de ese navegador.
 - El stock es simulado; no viene del ERP.
-- La confirmación de un pedido no reserva nada realmente ni notifica a nadie.
+- Confirmar un pedido **sí** reserva stock dentro del prototipo, pero no notifica a nadie:
+  el aviso al cliente se abre en WhatsApp y se envía a mano.
+- El login valida contra una credencial de demo, no contra un directorio real.
 
 ---
 
