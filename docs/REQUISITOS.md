@@ -259,7 +259,8 @@ No se puede construir sin que Comercial o Finanzas respondan (§9):
 
 ### Deuda conocida
 
-- **RNF-04**: hay 53 tests sobre la lógica, ninguno de interfaz. No están instalados jsdom
-  ni testing-library; los dos tests de layout inspeccionan el fuente, que es frágil.
+- **RNF-04**: 75 tests, de los cuales 4 son de interfaz. Cubren el recorrido de armar y
+  confirmar un pedido, la condición de venta, el catálogo y el guard de sesión. Faltan las
+  demás pantallas: informes, clientes y las transiciones desde el detalle.
 - **RNF-06**: nadie midió todavía si es más rápido que el cuaderno. Se cronometra en P7.
 - **RF-16**: falta probarlo con un vendedor frente a un cliente real.

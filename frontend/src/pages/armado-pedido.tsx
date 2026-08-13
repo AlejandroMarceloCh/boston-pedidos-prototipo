@@ -1556,6 +1556,7 @@ function CatalogoDrawer({
                       <button
                         key={a.codigo}
                         onClick={() => setArticulo(a.codigo)}
+                        aria-label={`Artículo ${a.codigo}, ${a.descripcion}, ${a.linea}`}
                         className={cn(
                           "group flex items-center gap-3.5 px-4 py-3.5 text-left transition-colors",
                           "hover:bg-primary/[0.06] focus-visible:outline-none focus-visible:bg-primary/[0.06]",
