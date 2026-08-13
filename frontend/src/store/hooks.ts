@@ -20,6 +20,17 @@ export function usePedidos() {
       borradores: lista.filter((p) => p.estado === "borrador"),
       pedido: (nro: string | null): PedidoDetalle | undefined =>
         nro ? state.pedidos[nro] : undefined,
+      /** Pedidos vivos de un cliente, cruzados por código y no por nombre. */
+      porCliente: (codigo: string | null) =>
+        codigo
+          ? Object.values(state.pedidos)
+              .filter((p) => p.clienteId === codigo && p.estado !== "anulado")
+              .map((p) => ({
+                nro: p.nro,
+                total: p.total,
+                items: p.items.reduce((a, i) => a + (i.atendible ?? i.cantidad), 0),
+              }))
+          : [],
       total: lista.length,
     };
   }, [state]);

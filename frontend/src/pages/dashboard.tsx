@@ -37,8 +37,13 @@ export default function DashboardPage() {
   const { resumenes } = usePedidos();
   const k = useKpis();
 
-  // Los 5 más recientes, de la misma fuente que Mis pedidos.
-  const PEDIDOS = resumenes.slice(0, 5);
+  // Pedidos de hoy de verdad: antes listaba los 5 más recientes de cualquier
+  // fecha bajo el título "Pedidos de hoy". Si hoy no hubo, se muestran los
+  // últimos y el título lo dice.
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const deHoy = resumenes.filter((p) => p.fecha.startsWith(hoyISO));
+  const hayDeHoy = deHoy.length > 0;
+  const PEDIDOS = (hayDeHoy ? deHoy : resumenes).slice(0, 5);
 
   // Cada KPI lleva a la vista que lo explica: un número que no se puede abrir
   // obliga a buscar a mano de dónde salió.
@@ -129,7 +134,9 @@ export default function DashboardPage() {
       {/* Pedidos recientes */}
       <Card>
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
-          <p className="text-[13px] font-semibold">Pedidos de hoy</p>
+          <p className="text-[13px] font-semibold">
+            {hayDeHoy ? "Pedidos de hoy" : "Últimos pedidos"}
+          </p>
           <Link
             to="/pedidos"
             className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors"

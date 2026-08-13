@@ -48,7 +48,7 @@ export function AppLayout() {
   const [cmdOpen, setCmdOpen] = useState(false);
   const [navAbierto, setNavAbierto] = useState(false);
   const [resetOpen, setResetOpen] = useState(false);
-  const { resetDemo } = useStore();
+  const { resetDemo, salir } = useStore();
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -168,7 +168,10 @@ export function AppLayout() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem
-                onClick={() => navigate("/login")}
+                onClick={() => {
+                  salir();
+                  navigate("/login");
+                }}
                 className="text-destructive focus:text-destructive"
               >
                 <LogOut className="h-3.5 w-3.5" />

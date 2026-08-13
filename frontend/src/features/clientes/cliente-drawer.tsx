@@ -40,13 +40,13 @@ export function ClienteDrawer({
 }) {
   const navigate = useNavigate();
   const cliente = CLIENTES.find((c) => c.codigo === clienteId) ?? null;
-  const { resumenes } = usePedidos();
+  const { porCliente } = usePedidos();
 
-  // Estadísticas reales del cliente: antes eran literales idénticos para todos.
+  // Estadísticas reales del cliente. Se cruza por clienteId y no por nombre:
+  // las razones sociales llevan sufijo ("… SAC") y los pedidos guardan el
+  // nombre sin él, así que el cruce por texto daba 0 pedidos para todos.
   const stats = (() => {
-    const suyos = resumenes.filter(
-      (p) => p.estado !== "anulado" && p.cliente === cliente?.razonSocial
-    );
+    const suyos = porCliente(cliente?.codigo ?? null);
     return {
       pedidos: suyos.length,
       docenas: Math.floor(suyos.reduce((a, p) => a + p.items, 0) / 12),

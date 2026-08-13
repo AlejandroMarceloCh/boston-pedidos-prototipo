@@ -676,7 +676,7 @@ function PasoCliente({
     <div className="max-w-2xl mx-auto px-6 py-10">
       <h2 className="text-xl font-semibold tracking-tight">¿Para quién es el pedido?</h2>
       <p className="mt-1 text-[13px] text-muted-foreground">
-        Elige el cliente de tu cartera. Solo se muestran los activos asignados a tu cuenta.
+        Elige el cliente. Solo se muestran los que están activos.
       </p>
 
       <div className="relative mt-5">

@@ -39,6 +39,7 @@ import {
   type CausaSaldo,
   type EstadoPedido,
 } from "./pedido-data";
+import { CLIENTES } from "@/lib/mock-data";
 import { cn, formatCurrency, formatFechaISO } from "@/lib/utils";
 
 const estadoConfig: Record<
@@ -118,9 +119,11 @@ export function PedidoDrawer({
     navigate(`/pedidos/${nuevo}/editar`);
   };
 
-  // Sin backend no hay envío real: se abre WhatsApp con el mensaje ya escrito.
+  // Sin backend no hay envío real: se abre WhatsApp con el mensaje ya escrito
+  // y, si el cliente tiene teléfono, dirigido a su número.
   const reenviar = () => {
     if (!pedido) return;
+    const destino = CLIENTES.find((c) => c.codigo === pedido.clienteId)?.telefono;
     const texto = [
       `Pedido ${pedido.nro} · ${pedido.cliente}`,
       ...pedido.items.map(
@@ -128,7 +131,12 @@ export function PedidoDrawer({
       ),
       `Total: ${formatCurrency(pedido.total)}`,
     ].join("\n");
-    window.open(`https://wa.me/?text=${encodeURIComponent(texto)}`, "_blank", "noopener");
+    const numero = destino?.replace(/[^\d]/g, "") ?? "";
+    window.open(
+      `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`,
+      "_blank",
+      "noopener"
+    );
   };
 
   return (

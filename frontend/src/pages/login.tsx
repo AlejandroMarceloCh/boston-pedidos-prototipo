@@ -7,12 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { CURRENT_USER } from "@/lib/mock-data";
+import { useStore } from "@/store/app-store";
 
 // Credencial de la demo. Con backend esto lo valida el servidor.
 const CLAVE_DEMO = "boston2026";
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const { entrar } = useStore();
   const [showPwd, setShowPwd] = useState(false);
   const [loading, setLoading] = useState(false);
   const [usuario, setUsuario] = useState("miguel.quispe");
@@ -39,6 +41,7 @@ export default function LoginPage() {
         setError("Usuario o contraseña incorrectos.");
         return;
       }
+      entrar(CURRENT_USER.usuario);
       toast.success(`Bienvenido, ${CURRENT_USER.nombre.split(" ")[0]}`);
       navigate("/dashboard");
     }, 500);

@@ -237,3 +237,36 @@ describe("RNF-05 · los importes por línea suman el subtotal", () => {
     expect(t.subtotal).toBe(120);
   });
 });
+
+// ===== Colaterales de la auditoría =====
+describe("colaterales", () => {
+  it("la sesión arranca cerrada, entrar la abre y salir la cierra", () => {
+    let s = semilla(new Date(2027, 2, 15, 12, 0));
+    expect(s.sesion).toBeNull();
+    s = reducer(s, { type: "sesion/entrar", usuario: "miguel.quispe" });
+    expect(s.sesion).toBe("miguel.quispe");
+    s = reducer(s, { type: "sesion/salir" });
+    expect(s.sesion).toBeNull();
+  });
+
+  it("reiniciar la demo también cierra la sesión", () => {
+    let s = reducer(semilla(new Date(2027, 2, 15, 12, 0)), {
+      type: "sesion/entrar",
+      usuario: "miguel.quispe",
+    });
+    s = reducer(s, { type: "demo/reset", ahora: new Date(2027, 2, 15, 12, 0) });
+    expect(s.sesion).toBeNull();
+  });
+
+  it("los pedidos de un cliente se cruzan por código, no por razón social", () => {
+    const s = semilla(new Date(2027, 2, 15, 12, 0));
+    // Las razones sociales llevan sufijo ("… SAC") y los pedidos guardan el
+    // nombre sin él: cruzar por texto daba cero para todos los clientes.
+    const conCodigo = Object.values(s.pedidos).filter((p) => p.clienteId === "108671");
+    expect(conCodigo.length).toBeGreaterThan(0);
+    const porNombre = Object.values(s.pedidos).filter(
+      (p) => p.cliente === "Distribuidora Andina del Sur SAC"
+    );
+    expect(porNombre).toHaveLength(0);
+  });
+});

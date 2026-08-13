@@ -53,6 +53,8 @@ export type Action =
   | { type: "pedido/anular"; nro: string; fecha: string; motivo?: string }
   | { type: "pedido/causaSaldo"; nro: string; fecha: string; causa: CausaSaldo }
   | { type: "borrador/activo"; nro: string | null }
+  | { type: "sesion/entrar"; usuario: string }
+  | { type: "sesion/salir" }
   | { type: "demo/reset"; ahora: Date };
 
 /** Cada transición cambia el estado Y deja su rastro en el historial. Nunca una sin la otra. */
@@ -172,6 +174,12 @@ export function reducer(state: AppState, action: Action): AppState {
     case "borrador/activo":
       return { ...state, borradorActivo: action.nro };
 
+    case "sesion/entrar":
+      return { ...state, sesion: action.usuario };
+
+    case "sesion/salir":
+      return { ...state, sesion: null };
+
     case "demo/reset":
       return semilla(action.ahora);
 
@@ -189,7 +197,8 @@ function cargar(): AppState {
     const guardado = JSON.parse(crudo) as AppState;
     // Si cambió la forma del estado, se re-siembra en vez de migrar: es un prototipo.
     if (guardado?.version !== 1 || !guardado.pedidos) return semilla();
-    return guardado;
+    // Estados guardados antes de que existiera la sesión: se asume cerrada.
+    return { ...guardado, sesion: guardado.sesion ?? null };
   } catch {
     return semilla();
   }
@@ -209,6 +218,8 @@ type StoreValue = {
   setCausaSaldo: (nro: string, causa: CausaSaldo) => void;
   duplicarPedido: (nro: string) => string;
   setBorradorActivo: (nro: string | null) => void;
+  entrar: (usuario: string) => void;
+  salir: () => void;
   resetDemo: () => void;
 };
 
@@ -345,6 +356,8 @@ export function AppStoreProvider({ children }: { children: ReactNode }) {
         });
       },
       setBorradorActivo: (nro) => dispatch({ type: "borrador/activo", nro }),
+      entrar: (usuario) => dispatch({ type: "sesion/entrar", usuario }),
+      salir: () => dispatch({ type: "sesion/salir" }),
       resetDemo: () => dispatch({ type: "demo/reset", ahora: new Date() }),
     };
   }, [state]);

@@ -53,10 +53,15 @@ export default function CatalogoPage() {
       if (linea !== "Todas" && a.linea !== linea) return false;
       if (genero !== "TODOS" && a.genero !== genero) return false;
       if (!q) return true;
+      // El género se busca por su etiqueta ("damas"), no por el código crudo
+      // ("dam"), que es lo único que el usuario ve en pantalla.
+      const etiquetaGenero =
+        GENEROS.find((g) => g.id === a.genero)?.label.toLowerCase() ?? "";
       return (
         a.descripcion.toLowerCase().includes(q) ||
         a.codigo.includes(q) ||
-        a.linea.toLowerCase().includes(q)
+        a.linea.toLowerCase().includes(q) ||
+        etiquetaGenero.includes(q)
       );
     });
   }, [query, linea, genero]);

@@ -1,5 +1,5 @@
-import { useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { useState, useMemo, useEffect } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Search, Plus, ChevronRight, Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,16 @@ export default function MisPedidosPage() {
   const [filtro, setFiltro] = useState<Filtro>("todos");
   // Filtro por estado desde las tarjetas del pie; convive con los tabs.
   const [estadoFiltro, setEstadoFiltro] = useState<Estado | null>(null);
+  const [params, setParams] = useSearchParams();
+
+  // ?estado=… — lo usan los KPI del dashboard para llegar ya filtrados.
+  useEffect(() => {
+    const e = params.get("estado");
+    if (!e) return;
+    if (e in estadoConfig) setEstadoFiltro(e as Estado);
+    params.delete("estado");
+    setParams(params, { replace: true });
+  }, [params, setParams]);
   const [selectedPedido, setSelectedPedido] = useState<string | null>(null);
 
   const filtrados = useMemo(() => {
@@ -65,7 +75,9 @@ export default function MisPedidosPage() {
       <header className="flex items-end justify-between mb-6">
         <div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground font-medium">
-            Agosto 2026
+            {new Date()
+              .toLocaleDateString("es-PE", { month: "long", year: "numeric" })
+              .replace(/^\w/, (c) => c.toUpperCase())}
           </p>
           <h1 className="mt-1 text-2xl font-semibold tracking-tight">Mis pedidos</h1>
           <p className="mt-1 text-sm text-muted-foreground">

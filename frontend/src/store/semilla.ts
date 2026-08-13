@@ -11,6 +11,11 @@ export type AppState = {
   pedidos: Record<string, PedidoDetalle>;
   /** Borrador que el catálogo alimenta cuando no se está dentro del asistente. */
   borradorActivo: string | null;
+  /**
+   * Usuario con sesión abierta. Sin backend no hay token: alcanza con saber si
+   * alguien entró, para que las rutas internas no se abran escribiendo la URL.
+   */
+  sesion: string | null;
 };
 
 /** "2026-08-11 09:42" → Date */
@@ -71,5 +76,5 @@ export function semilla(ahora: Date = new Date()): AppState {
     };
   }
 
-  return { version: 1, pedidos, borradorActivo: null };
+  return { version: 1, pedidos, borradorActivo: null, sesion: null };
 }
