@@ -51,23 +51,26 @@ NO los ayudes. Toma nota de:
 
 **Marco:** NEGDIG Sesión 26 (Riskiest Assumptions). Búsqueda de supuestos no validados.
 
-### Preguntas clave (slots 3/4)
+### Preguntas clave (descuento manual)
 
-1. En la tabla `tblpedidoswebdescuentos`, los slots 3 y 4 guardan valores 5%, 10%, 15% que NO aparecen en la tabla de escalas. ¿Qué son?
-2. ¿Los aplica el vendedor libremente o requieren autorización?
+> Las referencias a tablas del ERP que traía este guion no están verificadas y el sistema
+> nuevo es independiente de él. Preguntar por el negocio, no por la base de datos.
+
+1. Además del descuento inicial y del de volumen, ¿el vendedor puede aplicar otro descuento?
+2. ¿Lo aplica libremente o requiere autorización?
 3. Si requieren autorización, ¿quién la da y cómo se registra?
 4. ¿Hay un tope máximo de descuento manual por pedido/cliente?
 
 ### Preguntas clave (descuento inicial 38%)
 
-1. El descuento inicial del 38% (tipo `01` en `tblpedidoswebdescuentos`), ¿se aplica siempre? ¿En qué casos no?
+1. El descuento inicial del 38%, ¿se aplica siempre? ¿En qué casos no?
 2. ¿Es por tipo de cliente (distribuidor vs minorista)?
 3. ¿Es por línea de producto? ¿O por temporada?
 4. Si un cliente nuevo pide su primer pedido, ¿recibe el 38%?
 
 ### Preguntas clave (condiciones de venta)
 
-1. Hoy existen `E/C/L/O/D` (contra entrega, contado, letras, obsequio, donación). ¿Cuándo aplica cada una?
+1. Las condiciones de venta que manejamos son contra entrega, contado, letras, obsequio y donación. ¿Cuándo aplica cada una?
 2. ¿Hay clientes bloqueados por mal comportamiento de pago? ¿Quién decide?
 3. ¿Las notas de crédito (si existen) afectan descuentos en el pedido siguiente?
 

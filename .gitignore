@@ -53,3 +53,6 @@ logs/
 # ===== macOS AppleDouble =====
 ._*
 .AppleDouble
+
+# Paquete de despliegue
+boston-pedidos.tar.gz

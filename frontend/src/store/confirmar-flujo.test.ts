@@ -224,7 +224,12 @@ describe("RF-02 · una reserva vencida no se puede facturar", () => {
     // El reducer compara contra la hora real, así que la confirmación se
     // envejece respecto de ahora, no de la fecha simulada de la semilla.
     const viejo = new Date(Date.now() - (HORAS_RESERVA + 5) * 3600_000);
-    const fechaVieja = `${viejo.getFullYear()}-${String(viejo.getMonth() + 1).padStart(2, "0")}-${String(viejo.getDate()).padStart(2, "0")} 10:00`;
+    const dd = (n: number) => String(n).padStart(2, "0");
+    // La hora también, o según el momento del día la resta caía dentro del
+    // plazo y el test pasaba o fallaba por azar.
+    const fechaVieja =
+      `${viejo.getFullYear()}-${dd(viejo.getMonth() + 1)}-${dd(viejo.getDate())}` +
+      ` ${dd(viejo.getHours())}:${dd(viejo.getMinutes())}`;
     s = reducer(s, {
       type: "pedido/upsert",
       pedido: {

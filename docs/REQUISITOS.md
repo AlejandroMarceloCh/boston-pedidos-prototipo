@@ -10,7 +10,7 @@ su estado real en el prototipo. Se actualiza cuando aparece una fuente nueva.
 | # | Fuente | Fecha |
 |---|---|---|
 | A | Reunión Sala de Ventas · Inventario — `Transcripciones/output/REU-SALAVENTAS-INVENTARIO_20260807.txt` | 7 ago 2026 |
-| B | Auditoría del ERP actual (2 bases de datos, tablas `tblpedidosweb*`) — citada en `P7-guion-validacion-asunciones.md` | previa |
+| B | ⚠️ Referencias a tablas del ERP (`tblpedidosweb*`) heredadas del guion P7 y **sin verificar**. El sistema nuevo es independiente del ERP; tratar estas menciones como no confirmadas hasta que alguien las valide | previa |
 | C | Guion de validación P7 — `docs/P7-guion-validacion-asunciones.md` | ago 2026 |
 
 Las citas entre comillas son textuales de la fuente A salvo indicación.
@@ -124,8 +124,12 @@ El ejemplo: el cliente quiere 500 y hay 20 → *"quiero las 20, y esas 480 es un
 ### Reglas conocidas hoy
 
 Escala por volumen (docenas totales): 0-4 → 11% · 5-49 → 12% · 50-99 → 13% · 100-199 → 14% ·
-200-249 → 15% · 250+ → 18%. Descuento inicial 38% (tipo `01` en `tblpedidoswebdescuentos`).
-Slots 3 y 4 con valores 5/10/15% **cuyo significado nadie confirmó** (fuente B y C).
+200-249 → 15% · 250+ → 18%. Descuento inicial 38%. Descuento manual adicional con
+autorización sobre 15%.
+
+> ⚠️ **Nada de esto está confirmado.** Los porcentajes vienen de una sesión anterior y no se
+> sabe de dónde salieron. El 38% se aplica hoy a todos los clientes por igual. Antes de que
+> alguien tome una decisión mirando estos números, hay que validarlos con Comercial.
 
 | ID | Requisito | Estado |
 |---|---|---|
@@ -204,8 +208,9 @@ del ERP y del guion P7.
 4. ¿La **bonificación** es producto gratis o descuento? ¿Sobre qué se calcula? (RF-33)
 5. ¿Cuánto cambia el descuento entre distribuidor y minorista, y entre contado y letras? (RF-34, RF-36)
 6. ¿La factura partida y el multi-destino son frecuentes o excepcionales? (RF-41, RF-42)
-7. ¿Qué son los **slots 3 y 4** de `tblpedidoswebdescuentos` (5/10/15%)? ¿Quién los autoriza y con qué tope? (RF-37)
+7. ¿El **descuento manual** existe como tal? ¿Quién lo autoriza y con qué tope? (RF-37)
 8. ¿El **38% inicial** aplica siempre? ¿Depende de cliente, línea o temporada? ¿Y un cliente nuevo? (RF-36)
+8b. ¿De dónde salieron los porcentajes de la escala por volumen? Nadie lo sabe.
 9. ¿Dónde vive el **crédito** del cliente, si no está en ninguna de las dos bases? (RF-51)
 10. ¿Cuánto dura una **reserva de stock** antes de liberarse? La interfaz dice 48 h, sin fuente. (RF-02)
 11. ¿Cómo se controlan las **muestras** en poder del cliente? (RF-52)
