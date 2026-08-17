@@ -17,9 +17,6 @@ describe("e2e · pedir 500 cuando hay 20", () => {
       pedido: { ...b, items: [{ ...b.items[0], cantidad: 500 }] },
     });
 
-    const reservas = reservasPorSku(s);
-    const atendible = Math.min(500, disponibleDe(sku, reservas));
-    const excedente = 500 - atendible;
 
     s = reducer(s, {
       type: "pedido/confirmar",

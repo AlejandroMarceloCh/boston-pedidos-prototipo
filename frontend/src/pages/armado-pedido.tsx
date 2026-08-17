@@ -202,7 +202,11 @@ export default function ArmadoPedidoPage() {
   const avanzar = () => setPaso((p) => Math.min(3, p + 1));
   const volver = () => setPaso((p) => Math.max(0, p - 1));
 
-  // Detectar subida de nivel de descuento → aviso formal
+  // Detectar subida de nivel de descuento → aviso formal.
+  //
+  // Depende solo de `nivel.nivel` a propósito: el aviso tiene que dispararse
+  // cuando se cruza un escalón, no cada vez que cambia el porcentaje o el nivel
+  // previo. Incluir esas dependencias lo repetiría en cada render del paso.
   useEffect(() => {
     if (nivel && nivelPrevio !== null && nivel.nivel > nivelPrevio) {
       // El % anterior sale de la escala por nivel, no de reconstruir docenas.
