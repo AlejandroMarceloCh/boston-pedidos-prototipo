@@ -3,13 +3,16 @@ import { Link } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
+  ArrowLeft,
   CalendarDays,
-  Check,
+  CheckCircle2,
   ChevronRight,
   MapPin,
+  Minus,
   Plus,
   Search,
-  ShoppingBag,
+  ShoppingCart,
+  Send,
   Sparkles,
   TrendingDown,
   Users,
@@ -34,6 +37,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, formatCurrency } from "@/lib/utils";
+import { useStore } from "@/store/app-store";
+import { useClientPortalStore, type ClientRequest } from "@/store/client-portal-store";
 
 type Metric = { label: string; value: string; note: string; tone?: "red" | "amber" };
 
@@ -86,32 +91,89 @@ function PageHeading({ eyebrow, title, subtitle, action }: { eyebrow: string; ti
   );
 }
 
+const catalogProducts = [
+  { code: "PAPH", name: "Pack Pijama Hombre", category: "Hombre", detail: "Polo manga corta + pantalón", image: "/products/pijama-hombre.jpg", stock: "Disponible" },
+  { code: "PAPM", name: "Pack Pijama Mujer", category: "Mujer", detail: "Polo manga corta + pantalón", image: "/products/pijama-mujer.jpg", stock: "Disponible" },
+  { code: "642L", name: "Bóxer Corto a la Cadera", category: "Hombre", detail: "Listado azul", image: "/products/boxer-642l.jpg", stock: "Disponible" },
+  { code: "135", name: "Medias Casuales Pack x3", category: "Medias", detail: "Box 1 · tres pares", image: "/products/medias-casuales.jpg", stock: "Disponible" },
+  { code: "136", name: "Medias Deportivas Colores Pack x3", category: "Medias", detail: "Box 1 · tres pares", image: "/products/medias-deportivas.jpg", stock: "Disponible" },
+  { code: "510V", name: "Pantalón Palazzo Mujer", category: "Mujer", detail: "Algodón viscosa · negro", image: "/products/palazzo-mujer.png", stock: "Bajo solicitud" },
+  { code: "500V", name: "Camisón Oversize Mujer", category: "Mujer", detail: "Algodón viscosa · acero", image: "/products/camison-mujer.png", stock: "Disponible" },
+  { code: "250", name: "Bikini Mujer Pack x3", category: "Mujer", detail: "Elástico visible · cobalto", image: "/products/bikini-mujer.png", stock: "Disponible" },
+  { code: "718", name: "Bikini Deportivo Niños Pack x3", category: "Niños", detail: "Elástico visible · blanco", image: "/products/bikini-nino.png", stock: "Disponible" },
+  { code: "720", name: "Camiseta Clásica Niños Pack x3", category: "Niños", detail: "Sin mangas · blanco", image: "/products/camiseta-nino.png", stock: "Disponible" },
+  { code: "310", name: "Trusa Clásica Niñas Pack x3", category: "Niñas", detail: "Tejido rib · blanco", image: "/products/trusa-nina.png", stock: "Disponible" },
+  { code: "320", name: "Camiseta sin Mangas Niñas", category: "Niñas", detail: "Algodón · blanco", image: "/products/camiseta-nina.png", stock: "Disponible" },
+];
+const emptyClientCart: Record<string, number> = {};
+const emptyClientRequests: ClientRequest[] = [];
+
 export function ClienteHome() {
+  const { state } = useStore();
+  const user = state.sesion ?? "cliente.boston";
   const [search, setSearch] = useState("");
-  const products = [
-    { code: "718", name: "Bikini deportivo", colors: "Negro · Acero · Azul", status: "Disponible", tone: "green" as const },
-    { code: "879", name: "Bikini pack x3", colors: "Blanco · Rojo · Marino", status: "Parcial", tone: "amber" as const },
-    { code: "642", name: "Bóxer corto a la cadera", colors: "Listado azul", status: "Bajo solicitud", tone: "red" as const },
-  ].filter((p) => `${p.code} ${p.name}`.toLowerCase().includes(search.toLowerCase()));
+  const [category, setCategory] = useState("Todos");
+  const cart = useClientPortalStore((store) => store.carts[user] ?? emptyClientCart);
+  const requests = useClientPortalStore((store) => store.requests[user] ?? emptyClientRequests);
+  const setQuantity = useClientPortalStore((store) => store.setQuantity);
+  const categories = ["Todos", "Hombre", "Mujer", "Niños", "Niñas", "Medias"];
+  const products = catalogProducts.filter((product) => {
+    const matchesCategory = category === "Todos" || product.category === category;
+    const term = search.trim().toLowerCase();
+    return matchesCategory && (!term || `${product.code} ${product.name} ${product.detail}`.toLowerCase().includes(term));
+  });
+  const cartCount = Object.values(cart).reduce((total, quantity) => total + quantity, 0);
+  const updateCart = (code: string, change: number) => setQuantity(user, code, (cart[code] ?? 0) + change);
 
   return (
-    <div className="brand-page">
-      <PageHeading eyebrow="Portal mayorista" title="Compra Boston para tu negocio." subtitle="Consulta, solicita y sigue tus pedidos desde un solo lugar." action={<Button asChild className="brand-primary"><Link to="/pedidos/nuevo"><Plus />Crear solicitud</Link></Button>} />
-      <Metrics items={[{ label: "Pedido en preparación", value: "BO-01842", note: "Entrega estimada 12 SEP" }, { label: "Solicitudes abiertas", value: "02", note: "Respuesta prevista hoy" }, { label: "Compra del mes", value: "S/ 184K", note: "+12% frente a agosto" }, { label: "Siguiente beneficio", value: "S/ 16K", note: "para alcanzar el próximo tramo", tone: "amber" }]} />
-      <div className="brand-two-columns">
-        <section className="brand-panel">
-          <div className="brand-panel-heading"><div><span>Pedido BO-01842</span><small>Actualizado hace 12 minutos</small></div><Status tone="green">En preparación</Status></div>
-          <div className="brand-order-track">{["Confirmado", "Preparación", "Despacho", "En ruta", "Entregado"].map((step, index) => <div key={step} className={cn("brand-order-step", index < 2 && "done", index === 2 && "current")}><i>{index < 2 ? <Check /> : index + 1}</i><span>{step}</span></div>)}</div>
-          <div className="brand-table-wrap"><table className="brand-table"><thead><tr><th>Artículo</th><th>Pedido</th><th>Atención</th></tr></thead><tbody><tr><td><strong>718</strong> · Bikini deportivo / Negro</td><td>48 doc.</td><td><Status tone="green">Completo</Status></td></tr><tr><td><strong>879</strong> · Pack x3 / Azul</td><td>18 doc.</td><td><Status tone="amber">12 + 6 pendientes</Status></td></tr><tr><td><strong>642</strong> · Bóxer corto / Marino</td><td>8 doc.</td><td><Status tone="green">Completo</Status></td></tr></tbody></table></div>
-        </section>
-        <section className="brand-panel">
-          <div className="brand-panel-heading"><div><span>Catálogo rápido</span><small>Sin mostrar cantidades internas</small></div></div>
-          <div className="relative px-4 pt-4"><Search className="absolute left-7 top-7 h-4 w-4 text-muted-foreground"/><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Artículo o código" className="pl-9" /></div>
-          <div className="brand-product-list">{products.map((p) => <button key={p.code}><span className="brand-product-thumb"><ShoppingBag /></span><span><strong>{p.code} · {p.name}</strong><small>{p.colors}</small></span><Status tone={p.tone}>{p.status}</Status></button>)}</div>
-        </section>
-      </div>
+    <div className="brand-page client-catalog-page">
+      <section className="client-catalog-head">
+        <div><p>CATÁLOGO MAYORISTA</p><h1>¿Qué quieres comprar hoy?</h1><span>Elige tus productos y cantidades. Nosotros confirmaremos disponibilidad, precio y fecha de entrega.</span></div>
+        {requests[0] && <div className="client-order-resume"><span><i /> {requests[0].id} · Solicitud enviada</span><small>Solo tú puedes consultar esta solicitud.</small></div>}
+      </section>
+
+      <section className="client-catalog-tools" aria-label="Buscar y filtrar productos">
+        <div className="client-search"><Search /><Input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar por producto, código o color" /></div>
+        <div className="client-categories">{categories.map((item) => <button key={item} className={cn(category === item && "active")} onClick={() => setCategory(item)}>{item}</button>)}</div>
+        <Button asChild className={cn("client-cart-button", cartCount > 0 && "has-items")}><Link to="/cliente/solicitud"><ShoppingCart /><span>Mi solicitud</span><b>{cartCount}</b></Link></Button>
+      </section>
+
+      <div className="client-results-row"><span><strong>{products.length}</strong> productos</span><small>Fotografías y nombres del catálogo oficial Boston</small></div>
+      <section className="client-product-grid">
+        {products.map((product) => {
+          const quantity = cart[product.code] ?? 0;
+          return <article key={product.code} className="client-product-card">
+            <div className="client-product-image"><img src={product.image} alt={product.name} loading="lazy" /><span className={cn(product.stock !== "Disponible" && "limited")}>{product.stock}</span></div>
+            <div className="client-product-copy"><small>{product.category} · Cód. {product.code}</small><h2>{product.name}</h2><p>{product.detail}</p></div>
+            {quantity === 0 ? <button className="client-add-product" onClick={() => updateCart(product.code, 1)}><Plus /> Agregar a solicitud</button> : <div className="client-quantity"><button aria-label={`Quitar ${product.name}`} onClick={() => updateCart(product.code, -1)}><Minus /></button><label><input aria-label={`Cantidad de ${product.name}`} type="number" min="1" value={quantity} onChange={(event) => setQuantity(user, product.code, Number(event.target.value))} onDoubleClick={(event) => event.currentTarget.select()} /><small>unidades</small></label><button aria-label={`Agregar otro ${product.name}`} onClick={() => updateCart(product.code, 1)}><Plus /></button></div>}
+          </article>;
+        })}
+      </section>
+      {products.length === 0 && <div className="client-empty"><Search /><strong>No encontramos ese producto</strong><span>Prueba con otro nombre, código o categoría.</span></div>}
+      {cartCount > 0 && <aside className="client-floating-cart"><div><ShoppingCart /><span><strong>{cartCount} {cartCount === 1 ? "unidad" : "unidades"}</strong><small>Doble clic sobre una cantidad para escribirla</small></span></div><Button asChild className="brand-primary"><Link to="/cliente/solicitud">Revisar solicitud <ArrowRight /></Link></Button></aside>}
     </div>
   );
+}
+
+export function ClienteCart() {
+  const { state } = useStore();
+  const user = state.sesion ?? "cliente.boston";
+  const cart = useClientPortalStore((store) => store.carts[user] ?? emptyClientCart);
+  const requests = useClientPortalStore((store) => store.requests[user] ?? emptyClientRequests);
+  const setQuantity = useClientPortalStore((store) => store.setQuantity);
+  const submitRequest = useClientPortalStore((store) => store.submitRequest);
+  const [sentId, setSentId] = useState<string | null>(null);
+  const selected = catalogProducts.filter((product) => (cart[product.code] ?? 0) > 0);
+  const totalUnits = selected.reduce((sum, product) => sum + cart[product.code], 0);
+
+  if (sentId) return <div className="client-request-page"><section className="client-request-success"><CheckCircle2 /><p>SOLICITUD ENVIADA</p><h1>{sentId}</h1><span>Tu vendedor revisará disponibilidad, precio y fechas de entrega.</span><div><strong>¿Qué sigue?</strong><p>Recibirás una cotización indicando qué productos pueden entregarse, en qué cantidades y para qué fecha. Nada se factura hasta que aceptes esa propuesta.</p></div><Button asChild className="brand-primary"><Link to="/cliente">Volver al catálogo <ArrowRight /></Link></Button></section></div>;
+
+  return <div className="client-request-page">
+    <Link to="/cliente" className="client-back"><ArrowLeft /> Seguir comprando</Link>
+    <header className="client-request-head"><div><p>MI SOLICITUD</p><h1>Revisa antes de enviar</h1><span>Solicitud privada de Comercial Demo Norte</span></div><strong>{totalUnits}<small> unidades solicitadas</small></strong></header>
+    {selected.length ? <div className="client-request-layout"><section className="client-request-list">{selected.map((product) => <article key={product.code}><img src={product.image} alt="" /><div><small>{product.category} · Cód. {product.code}</small><h2>{product.name}</h2><p>{product.detail}</p></div><label><span>Cantidad</span><input type="number" min="1" value={cart[product.code]} onChange={(event) => setQuantity(user, product.code, Number(event.target.value))} /></label><button aria-label={`Eliminar ${product.name}`} onClick={() => setQuantity(user, product.code, 0)}>Quitar</button></article>)}</section><aside className="client-request-summary"><p>RESUMEN</p><h2>{selected.length} productos</h2><div><span>Unidades solicitadas</span><strong>{totalUnits}</strong></div><div><span>Cliente</span><strong>Comercial Demo Norte</strong></div><div><span>Estado al enviar</span><strong>Pendiente de cotización</strong></div><p className="client-request-note">El precio final, la disponibilidad y las fechas serán confirmados por tu vendedor.</p><Button className="brand-primary w-full" onClick={() => { const request = submitRequest(user); setSentId(request.id); }}><Send /> Enviar solicitud de compra</Button></aside></div> : <section className="client-empty-cart"><ShoppingCart /><h1>Tu solicitud está vacía</h1><p>Agrega productos desde el catálogo para comenzar.</p><Button asChild className="brand-primary"><Link to="/cliente">Ver productos</Link></Button></section>}
+    {!selected.length && requests[0] && <small className="client-last-request">Última solicitud: {requests[0].id} · {requests[0].createdAt}</small>}
+  </div>;
 }
 
 export function VendedorHome() {

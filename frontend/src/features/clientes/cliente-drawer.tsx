@@ -174,7 +174,7 @@ export function ClienteDrawer({
                     MQ
                   </div>
                   <div>
-                    <p className="text-[12px] font-medium">Miguel Ángel Quispe</p>
+                    <p className="text-[12px] font-medium">Vendedor Demo 01</p>
                     <p className="text-[10px] text-muted-foreground tabular">cod. {cliente.vendedor}</p>
                   </div>
                 </div>

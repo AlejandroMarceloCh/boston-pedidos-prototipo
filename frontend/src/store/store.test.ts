@@ -267,8 +267,8 @@ describe("colaterales", () => {
   it("la sesión arranca cerrada, entrar la abre y salir la cierra", () => {
     let s = semilla(new Date(2027, 2, 15, 12, 0));
     expect(s.sesion).toBeNull();
-    s = reducer(s, { type: "sesion/entrar", usuario: "miguel.quispe" });
-    expect(s.sesion).toBe("miguel.quispe");
+    s = reducer(s, { type: "sesion/entrar", usuario: "vendedor.boston" });
+    expect(s.sesion).toBe("vendedor.boston");
     s = reducer(s, { type: "sesion/salir" });
     expect(s.sesion).toBeNull();
   });
@@ -276,7 +276,7 @@ describe("colaterales", () => {
   it("reiniciar la demo también cierra la sesión", () => {
     let s = reducer(semilla(new Date(2027, 2, 15, 12, 0)), {
       type: "sesion/entrar",
-      usuario: "miguel.quispe",
+      usuario: "vendedor.boston",
     });
     s = reducer(s, { type: "demo/reset", ahora: new Date(2027, 2, 15, 12, 0) });
     expect(s.sesion).toBeNull();

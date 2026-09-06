@@ -123,7 +123,7 @@ Si la segunda da 404, el fallback no está configurado.
 
 Y en el navegador:
 
-1. Entrar: usuario `miguel.quispe`, contraseña `boston2026`.
+1. Entrar con una de las credenciales demo documentadas en el README.
 2. **Recargar estando en `/pedidos`** — no debe dar 404.
 3. Armar un pedido y confirmarlo; tiene que aparecer en Mis Pedidos como confirmado.
 4. Recargar: el pedido sigue ahí.

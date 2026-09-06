@@ -27,7 +27,7 @@ function montar(ruta: string) {
       version: 1,
       pedidos: {},
       borradorActivo: null,
-      sesion: "miguel.quispe",
+      sesion: "vendedor.boston",
     })
   );
   return {
@@ -56,7 +56,7 @@ describe("armar y confirmar un pedido, como lo hace un vendedor", () => {
     const { user } = montar("/pedidos/nuevo");
 
     // Paso 1 · elegir cliente
-    const clientes = await screen.findAllByRole("button", { name: /Distribuidora/i });
+    const clientes = await screen.findAllByRole("button", { name: /Cliente Demo/i });
     await user.click(clientes[0]);
     await user.click(screen.getByRole("button", { name: /Continuar al paso 2/i }));
 
@@ -102,7 +102,7 @@ describe("armar y confirmar un pedido, como lo hace un vendedor", () => {
   it("la condición de venta elegida se guarda, no se pierde", async () => {
     const { user } = montar("/pedidos/nuevo");
 
-    const clientes = await screen.findAllByRole("button", { name: /Distribuidora/i });
+    const clientes = await screen.findAllByRole("button", { name: /Cliente Demo/i });
     await user.click(clientes[0]);
     await user.click(screen.getByRole("button", { name: /Continuar al paso 2/i }));
 
@@ -178,6 +178,7 @@ describe("lo que la interfaz promete tiene que ser cierto", () => {
       </AppStoreProvider>
     );
     // La pantalla de login, no el dashboard.
-    expect(await screen.findByLabelText(/Contraseña/i)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Usuario/i)).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Contraseña/i)).not.toBeInTheDocument();
   });
 });

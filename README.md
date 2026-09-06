@@ -23,7 +23,12 @@ npm install
 npm run dev          # http://localhost:5173
 ```
 
-Entrar con `miguel.quispe` / `boston2026` (credencial de demostración, escrita en el código).
+Credenciales de demostración:
+
+- Cliente: `cliente.boston` / `cliente2026`
+- Vendedor: `vendedor.boston` / `vendedor2026`
+- Mesa: `mesa.boston` / `mesa2026`
+- Panel comercial: `comercial.boston` / `comercial2026`
 
 ```bash
 npm run build        # compila a dist/
