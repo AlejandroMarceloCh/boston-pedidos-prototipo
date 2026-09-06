@@ -2,7 +2,7 @@ import { Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { useStore } from "@/store/app-store";
 import { AppLayout } from "@/components/layout/app-layout";
 import LoginPage from "@/pages/login";
-import DashboardPage from "@/pages/dashboard";
+import { ClienteHome, ComercialHome, MesaHome, VendedorHome } from "@/pages/role-home";
 import ClientesPage from "@/pages/clientes";
 import CatalogoPage from "@/pages/catalogo";
 import ArmadoPedidoPage from "@/pages/armado-pedido";
@@ -34,8 +34,12 @@ export default function App() {
           </RutaPrivada>
         }
       >
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/" element={<Navigate to="/vendedor" replace />} />
+        <Route path="/dashboard" element={<Navigate to="/vendedor" replace />} />
+        <Route path="/cliente" element={<ClienteHome />} />
+        <Route path="/vendedor" element={<VendedorHome />} />
+        <Route path="/mesa" element={<MesaHome />} />
+        <Route path="/comercial" element={<ComercialHome />} />
         <Route path="/clientes" element={<ClientesPage />} />
         <Route path="/catalogo" element={<CatalogoPage />} />
         <Route path="/pedidos/nuevo" element={<ArmadoPedidoPage />} />
